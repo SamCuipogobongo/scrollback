@@ -1,5 +1,7 @@
 # scrollback
 
+[![npm](https://img.shields.io/npm/v/sam-scrollback)](https://www.npmjs.com/package/sam-scrollback)
+
 Recall past AI conversations across coding agents — Claude Code, Codex, Devin,
 OpenCode, Qwen Code, Gemini CLI, Kimi Code, Factory Droid, Continue, Copilot CLI,
 Cursor, Zed, Copilot Chat, Cline/Roo/Kilo, Trae, Qoder, CodeBuddy, Aider, Goose,

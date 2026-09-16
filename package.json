@@ -17,6 +17,12 @@
     "search"
   ],
   "author": "Sam Cui",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SamCuipogobongo/scrollback.git"
+  },
+  "homepage": "https://github.com/SamCuipogobongo/scrollback",
+  "bugs": "https://github.com/SamCuipogobongo/scrollback/issues",
   "publishConfig": {
     "access": "public"
   },
