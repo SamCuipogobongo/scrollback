@@ -1,0 +1,3 @@
+{"type":"session.start","data":{"id":"cs1","cwd":"/Users/test/myapp"}}
+{"type":"user.message","data":{"content":"list the open ports on this machine"}}
+{"type":"assistant.message","data":{"content":"Ports 3000 and 5432 are listening."}}

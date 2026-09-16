@@ -1,0 +1,6 @@
+{"type":"session_meta","timestamp":"2026-09-10T12:00:00Z","payload":{"cwd":"/Users/test/myapp","timestamp":"2026-09-10T12:00:00Z"}}
+{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"<environment_context>cwd=/Users/test/myapp</environment_context>AGENTS.md instructions: be brief"}]}}
+{"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"migrate the user table to add email"}]}}
+{"type":"event_msg","payload":{"type":"user_message","message":"migrate the user table to add email"}}
+{"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Added a migration that creates users.email with a unique index."}]}}
+{"type":"event_msg","payload":{"type":"agent_message","message":"Added a migration that creates users.email with a unique index."}}

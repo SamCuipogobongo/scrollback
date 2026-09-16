@@ -167,6 +167,44 @@ export function cmdExtract(prefix: string, f: Flags): string {
   return lines.join("\n");
 }
 
+export function cmdStats(f: Flags): string {
+  const sessions = applyScope(loadAll(f.platform as string), { ...f, global: true });
+  const byPlat = new Map<string, { n: number; turns: number; userTurns: number; first: number; last: number }>();
+  const byMonth = new Map<string, number>();
+  for (const s of sessions) {
+    const e = byPlat.get(s.platform) || { n: 0, turns: 0, userTurns: 0, first: Infinity, last: 0 };
+    e.n++;
+    e.turns += s.turns.length;
+    e.userTurns += s.turns.filter((t) => t.role === "user").length;
+    if (s.startedAt) {
+      e.first = Math.min(e.first, s.startedAt);
+      e.last = Math.max(e.last, s.startedAt);
+      const m = new Date(s.startedAt).toISOString().slice(0, 7);
+      byMonth.set(m, (byMonth.get(m) || 0) + 1);
+    }
+    byPlat.set(s.platform, e);
+  }
+  const lines = ["scrollback stats\n"];
+  lines.push(
+    "platform      sessions  turns   user%   first        last",
+  );
+  for (const [p, e] of [...byPlat.entries()].sort((a, b) => b[1].n - a[1].n)) {
+    const upct = e.turns ? Math.round((e.userTurns / e.turns) * 100) : 0;
+    lines.push(
+      `${p.padEnd(13)} ${String(e.n).padStart(8)}  ${String(e.turns).padStart(6)}  ${String(upct).padStart(4)}%  ${fmtDate(e.first === Infinity ? 0 : e.first).slice(0, 10)}  ${fmtDate(e.last).slice(0, 10)}`,
+    );
+  }
+  lines.push("\nby month");
+  const months = [...byMonth.entries()].sort();
+  const max = Math.max(...months.map(([, n]) => n), 1);
+  for (const [m, n] of months) {
+    lines.push(`${m}  ${"█".repeat(Math.ceil((n / max) * 30))} ${n}`);
+  }
+  const totalT = [...byPlat.values()].reduce((a, e) => a + e.turns, 0);
+  lines.push(`\n${sessions.length} session(s), ${totalT} turns`);
+  return lines.join("\n");
+}
+
 export function cmdDoctor(f: Flags): string {
   const lines = ["scrollback doctor\n"];
   const detected = new Map(detectSources().map((d) => [d.source.id, d.roots]));

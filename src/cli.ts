@@ -2,7 +2,7 @@
 // scrollback — recall past AI conversations across coding agents.
 // Local-first: reads each platform's session storage, nothing is uploaded.
 
-import { cmdContext, cmdDoctor, cmdExtract, cmdList, cmdProjects, cmdSearch } from "./commands.ts";
+import { cmdContext, cmdDoctor, cmdExtract, cmdList, cmdProjects, cmdSearch, cmdStats } from "./commands.ts";
 import { cmdInstall } from "./install.ts";
 import { serveMcp } from "./mcp.ts";
 
@@ -33,6 +33,7 @@ const HELP = `scrollback — recall past AI conversations across coding agents
   scrollback context <id> [--grep kw] [--turns N] [--around N] [--from N --to N]
   scrollback extract <id> [--grep kw] [--json]
   scrollback doctor                            detected sources + session counts
+  scrollback stats                             per-platform + monthly activity
   scrollback install [--dry-run]               wire skills + MCP into agents
   scrollback --mcp                             run as MCP server (stdio)
 
@@ -47,6 +48,12 @@ platforms (auto-detected):
   kimi         ~/.kimi-code/sessions/*/*/agents/*/wire.jsonl (+ ~/.kimi legacy)
   continue     ~/.continue/sessions/*.json
   copilot-cli  ~/.copilot/session-state/*/events.jsonl
+  cursor       <Cursor>/User/globalStorage/state.vscdb + ~/.cursor/projects/**/agent-transcripts
+  zed          <Zed>/threads/threads.db (zstd blobs)
+  vscode-*     copilot-chat + cline/roo/kilo tasks + trae/qoder/codebuddy agent dirs
+  aider        **/.aider.chat.history.md
+  goose        ~/.local/share/goose/sessions/*.{jsonl,db}
+  antigravity  ~/.gemini/antigravity*/brain/*/…/transcript.jsonl
 
 override any root with SCROLLBACK_<PLATFORM>_ROOT (':'-separated).
 session ids accept any unique prefix.`;
@@ -97,6 +104,9 @@ export function main() {
       break;
     case "doctor":
       out = cmdDoctor(flags);
+      break;
+    case "stats":
+      out = cmdStats(flags);
       break;
     case "install":
       out = cmdInstall(flags);

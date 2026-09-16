@@ -12,6 +12,12 @@ import { factory } from "./sources/factory.ts";
 import { kimi } from "./sources/kimi.ts";
 import { cont } from "./sources/continue.ts";
 import { copilotCli } from "./sources/copilot-cli.ts";
+import { cursor } from "./sources/cursor.ts";
+import { zed } from "./sources/zed.ts";
+import { vscodeFamily } from "./sources/vscode-family.ts";
+import { aider } from "./sources/aider.ts";
+import { goose } from "./sources/goose.ts";
+import { antigravity } from "./sources/antigravity.ts";
 
 export const SOURCES: Source[] = [
   claude,
@@ -24,6 +30,12 @@ export const SOURCES: Source[] = [
   kimi,
   cont,
   copilotCli,
+  cursor,
+  zed,
+  vscodeFamily,
+  aider,
+  goose,
+  antigravity,
 ];
 
 export interface DetectedSource {
@@ -41,11 +53,17 @@ export function detectSources(): DetectedSource[] {
 
 export function loadAll(platform?: string): Session[] {
   const all: Session[] = [];
+  const want = (p: string) =>
+    p === platform || p.startsWith(platform + ":"); // "trae:cline" matches --platform trae
   for (const source of SOURCES) {
-    if (platform && platform !== "all" && platform !== source.id) continue;
+    const family = source.id === "vscode"; // produces per-app platform tags
+    if (platform && platform !== "all" && source.id !== platform && !family) continue;
     for (const root of source.roots()) {
       try {
-        all.push(...source.sessions(root));
+        for (const s of source.sessions(root)) {
+          if (platform && platform !== "all" && !want(s.platform)) continue;
+          all.push(s);
+        }
       } catch {
         continue; // one bad store never kills the scan
       }

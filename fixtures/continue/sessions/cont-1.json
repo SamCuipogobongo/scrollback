@@ -1,0 +1,10 @@
+{
+  "sessionId": "cont-1",
+  "title": "Continue chat",
+  "dateCreated": "2026-09-11T05:00:00Z",
+  "workspaceDirectory": "/Users/test/myapp",
+  "history": [
+    { "message": { "role": "user", "content": "explain the undo stack" } },
+    { "message": { "role": "assistant", "content": "The stack keeps inverse patches per edit." } }
+  ]
+}

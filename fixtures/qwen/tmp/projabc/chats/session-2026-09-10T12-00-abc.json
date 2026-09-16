@@ -1,0 +1,13 @@
+{
+  "sessionId": "qwen-sess-1",
+  "projectHash": "projabc",
+  "startTime": "2026-09-10T12:00:00Z",
+  "lastUpdated": "2026-09-10T12:05:00Z",
+  "kind": "main",
+  "hasResumableContent": true,
+  "messages": [
+    { "type": "user", "content": [{ "text": "rename the config key to timeout_ms" }] },
+    { "type": "gemini", "content": [{ "text": "Renamed in config.ts and all call sites." }] },
+    { "type": "tool", "content": [{ "text": "tool output ignored" }] }
+  ]
+}

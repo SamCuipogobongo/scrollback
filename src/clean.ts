@@ -41,13 +41,32 @@ const STRIP_RE = new RegExp(
   "gi",
 );
 
+const SECRET_RE = [
+  /sk-(?:ant-|proj-|or-)?[A-Za-z0-9_-]{16,}/g, // openai/anthropic/openrouter
+  /ghp_[A-Za-z0-9]{20,}|gho_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}/g,
+  /AKIA[0-9A-Z]{16}/g, // aws access key
+  /xox[baprs]-[A-Za-z0-9-]{10,}/g, // slack
+  /AIza[0-9A-Za-z_-]{30,}/g, // google api
+  /hf_[A-Za-z0-9]{20,}/g, // huggingface
+  /Bearer\s+[A-Za-z0-9._~-]{24,}/g,
+  /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----/g,
+];
+
+export function redactSecrets(text: string): string {
+  let out = text;
+  for (const re of SECRET_RE) out = out.replace(re, "[redacted]");
+  return out;
+}
+
 export function cleanText(raw: string): string {
-  return raw
-    .replace(STRIP_RE, " ")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/```[\s\S]*?```/g, (m) => (m.length > 4000 ? " " : m))
-    .replace(/\s+/g, " ")
-    .trim();
+  return redactSecrets(
+    raw
+      .replace(STRIP_RE, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/```[\s\S]*?```/g, (m) => (m.length > 4000 ? " " : m))
+      .replace(/\s+/g, " ")
+      .trim(),
+  );
 }
 
 const USER_NOISE = [

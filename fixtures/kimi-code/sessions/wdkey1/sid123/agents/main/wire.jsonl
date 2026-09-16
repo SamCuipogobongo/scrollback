@@ -1,0 +1,3 @@
+{"_system_prompt":"you are kimi"}
+{"type":"message","role":"user","content":"add retries to the fetch wrapper"}
+{"type":"message","role":"assistant","content":[{"type":"text","text":"Added exponential backoff capped at 3 retries."}]}

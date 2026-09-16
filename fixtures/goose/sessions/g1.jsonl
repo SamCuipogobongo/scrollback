@@ -1,0 +1,3 @@
+{"id":"g1","description":"Goose session","working_dir":"/Users/test/myapp","created":1757500000}
+{"role":"user","content":[{"type":"text","text":"goose: write a hello world server"}]}
+{"role":"assistant","content":[{"type":"text","text":"Here is a 10-line node http server."}]}

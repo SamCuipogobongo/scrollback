@@ -1,10 +1,13 @@
 # scrollback
 
 Recall past AI conversations across coding agents — Claude Code, Codex, Devin,
-OpenCode, Qwen Code, Gemini CLI, Kimi Code, Factory Droid, Continue, Copilot CLI.
+OpenCode, Qwen Code, Gemini CLI, Kimi Code, Factory Droid, Continue, Copilot CLI,
+Cursor, Zed, Copilot Chat, Cline/Roo/Kilo, Trae, Qoder, CodeBuddy, Aider, Goose,
+Antigravity.
 
 Reads each platform's local session storage directly. Nothing is uploaded, no
-daemon, no index — a query scans the stores in place.
+daemon, no index — a query scans the stores in place. Secrets are redacted at
+read time (API keys, tokens, private keys never leave the store).
 
 ## Install
 
@@ -66,6 +69,12 @@ Session ids accept any unique prefix.
 | Factory Droid | `~/.factory/sessions/<dashed-cwd>/*.jsonl` |
 | Continue | `~/.continue/sessions/*.json` |
 | Copilot CLI | `~/.copilot/session-state/*/events.jsonl` |
+| Cursor | `Cursor/User/globalStorage/state.vscdb` (IDE) + `~/.cursor/projects/**/agent-transcripts/*.jsonl` (CLI) |
+| Zed | `Zed/threads/threads.db` (zstd-compressed blobs, decoded in-process) |
+| VS Code family | `*/User/globalStorage/<ext>/tasks/*` (Cline/Roo/Kilo), `chatSessions/*` (Copilot Chat), `*/conversations/*` (Trae/Qoder/CodeBuddy — best effort) |
+| Aider | `**/.aider.chat.history.md` |
+| Goose | `~/.local/share/goose/sessions/*.{jsonl,db}` |
+| Antigravity | `~/.gemini/antigravity*/brain/*/…/transcript.jsonl` |
 
 Every root can be overridden with `SCROLLBACK_<PLATFORM>_ROOT`
 (`:`-separated for multiple). New adapters are one file in `src/sources/`

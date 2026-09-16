@@ -1,0 +1,4 @@
+{"sessionId":"11111111-2222-3333-4444-555555555555","title":"Droid refactor","working_directory":"/Users/test/myapp","created_at":"2026-09-11T03:00:00Z"}
+{"type":"message","role":"user","content":[{"type":"text","text":"refactor the parser to be streaming"}]}
+{"type":"message","role":"assistant","content":[{"type":"text","text":"Split parseFile into a line-by-line generator; memory stays flat."}]}
+{"type":"tool_call","name":"edit"}

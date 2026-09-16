@@ -1,0 +1,11 @@
+{
+  "sessionId": "chat-1",
+  "customTitle": "Copilot chat",
+  "creationDate": "2026-09-11T07:00:00Z",
+  "requests": [
+    {
+      "message": { "text": "copilot: why is my test slow" },
+      "response": { "value": "The beforeEach re-creates the db connection." }
+    }
+  ]
+}

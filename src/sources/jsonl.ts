@@ -20,7 +20,9 @@ export function textOf(content: any): string {
   if (typeof content === "string") return content;
   if (Array.isArray(content))
     return content
-      .map((b) => (typeof b === "string" ? b : b?.text ?? b?.content ?? ""))
+      .map((b) =>
+        typeof b === "string" ? b : b?.text ?? b?.Text ?? b?.content ?? "",
+      )
       .join("\n");
   if (content && typeof content === "object")
     return textOf(content.text ?? content.content ?? content.parts ?? "");
