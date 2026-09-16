@@ -1,16 +1,27 @@
 {
   "name": "scrollback",
-  "version": "0.1.0",
-  "description": "Recall past AI conversations across Claude Code, Codex, OpenCode, and Devin — reads local session storage, nothing uploaded.",
+  "version": "0.2.0",
+  "description": "Recall past AI conversations across coding agents — Claude Code, Codex, Devin, OpenCode, Qwen, Gemini, Kimi, Factory, Continue, Copilot CLI. Reads local session storage; nothing is uploaded.",
   "type": "module",
   "bin": {
-    "scrollback": "./scrollback.ts"
+    "scrollback": "dist/cli.js"
   },
+  "files": [
+    "dist",
+    "SKILL.md",
+    "README.md"
+  ],
   "scripts": {
-    "scrollback": "node scrollback.ts"
+    "build": "tsc -p .",
+    "dev": "node scrollback.ts",
+    "prepare": "npm run build"
   },
   "engines": {
-    "node": ">=23.6"
+    "node": ">=22.13"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.3",
+    "typescript": "^5.7.0"
   },
   "license": "MIT"
 }

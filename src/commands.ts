@@ -1,0 +1,193 @@
+// Command implementations — each returns a string so both the CLI and the
+// MCP server share one code path.
+
+import type { Session, Role } from "./types.ts";
+import {
+  applyScope,
+  detectSources,
+  fmtDate,
+  loadAll,
+  matchSession,
+  SOURCES,
+} from "./registry.ts";
+
+type Flags = Record<string, string | boolean>;
+
+export function cmdProjects(f: Flags): string {
+  const sessions = applyScope(loadAll(f.platform as string), { ...f, global: true });
+  const map = new Map<string, { last: number; counts: Record<string, number>; n: number }>();
+  for (const s of sessions) {
+    const k = s.cwd || "(no cwd)";
+    const e = map.get(k) || { last: 0, counts: {}, n: 0 };
+    e.n++;
+    e.last = Math.max(e.last, s.startedAt);
+    e.counts[s.platform] = (e.counts[s.platform] || 0) + 1;
+    map.set(k, e);
+  }
+  const rows = [...map.entries()].sort((a, b) => b[1].last - a[1].last);
+  const lim = Number(f.limit || 50);
+  const lines = ["active projects"];
+  for (const [cwd, e] of rows.slice(0, lim)) {
+    const parts = Object.entries(e.counts)
+      .map(([p, n]) => `${p}:${n}`)
+      .join(" ");
+    lines.push(`${fmtDate(e.last)}  sessions=${String(e.n).padStart(3)} (${parts})  ${cwd}`);
+  }
+  lines.push(`${rows.length} project(s)`);
+  return lines.join("\n");
+}
+
+export function cmdList(f: Flags): string {
+  const sessions = applyScope(loadAll(f.platform as string), f).sort(
+    (a, b) => b.startedAt - a.startedAt,
+  );
+  const lim = Number(f.limit || 50);
+  const scope = f.global ? "global" : `project=${(f.cwd as string) || process.cwd()}`;
+  const lines = [`scope: ${scope}  platform=${f.platform || "all"}`];
+  for (const s of sessions.slice(0, lim)) {
+    const title = s.title ? `  ${s.title.slice(0, 50)}` : "";
+    lines.push(
+      `[${s.platform.padEnd(10)}] ${fmtDate(s.startedAt)}  ${s.id.slice(0, 13)}  ${s.cwd}${title}`,
+    );
+  }
+  lines.push(`${sessions.length} session(s)`);
+  return lines.join("\n");
+}
+
+export function cmdSearch(q: string, f: Flags): string {
+  const sessions = applyScope(loadAll(f.platform as string), f);
+  const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const scope = f.global ? "global" : `project=${(f.cwd as string) || process.cwd()}`;
+  const lines = [`scope: ${scope}  keyword="${q}"  platform=${f.platform || "all"}`];
+  const hits: { s: Session; score: number; uh: number; ah: number; excerpt: string; role: Role }[] = [];
+  for (const s of sessions) {
+    let uh = 0,
+      ah = 0,
+      best = null as { text: string; role: Role } | null,
+      bestHits = -1;
+    for (const t of s.turns) {
+      const low = t.text.toLowerCase();
+      const n = tokens.reduce((acc, tok) => acc + (low.split(tok).length - 1), 0);
+      const allPresent = tokens.every((tok) => low.includes(tok));
+      if (n > 0) t.role === "user" ? (uh += n) : (ah += n);
+      if (allPresent && n > bestHits) {
+        bestHits = n;
+        best = t;
+      }
+    }
+    if (!uh && !ah) continue;
+    if (!best) {
+      const rare = tokens.reduce((a, b) => {
+        const ca = sessions.reduce(
+          (n, s2) => n + s2.turns.filter((t) => t.text.toLowerCase().includes(a)).length,
+          0,
+        );
+        const cb = sessions.reduce(
+          (n, s2) => n + s2.turns.filter((t) => t.text.toLowerCase().includes(b)).length,
+          0,
+        );
+        return ca <= cb ? a : b;
+      });
+      best = s.turns.find((t) => t.text.toLowerCase().includes(rare)) || s.turns[0];
+    }
+    const score = (3 * uh + ah) / Math.max(s.turns.length, 1);
+    hits.push({ s, score, uh, ah, excerpt: best.text.slice(0, 400), role: best.role });
+  }
+  hits.sort((a, b) => b.score - a.score);
+  const lim = Number(f.limit || 50);
+  for (const h of hits.slice(0, lim)) {
+    const title = h.s.title ? ` "${h.s.title.slice(0, 40)}"` : "";
+    lines.push(
+      `[${h.s.platform.padEnd(10)}] ${fmtDate(h.s.startedAt)}  ${h.s.id.slice(0, 13)}  ${h.s.cwd}  score=${h.score.toFixed(3)}  hits=${h.uh + h.ah} (u=${h.uh},a=${h.ah})  turns=${h.s.turns.length}${title}`,
+    );
+    for (const line of h.excerpt.split("\n").slice(0, 4)) {
+      if (line.trim()) lines.push(`    [${h.role}] ${line.slice(0, 160)}`);
+    }
+    lines.push("");
+  }
+  lines.push(`${hits.length} session(s)`);
+  return lines.join("\n");
+}
+
+export function cmdContext(prefix: string, f: Flags): string {
+  const s = matchSession(loadAll(), prefix);
+  if (!s) return `no session matching "${prefix}"`;
+  const budget = Number(f["max-chars"] || 6000);
+  const grep = (f.grep as string)?.toLowerCase();
+  const nTurns = Number(f.turns || 3);
+  const around = Number(f.around ?? 1);
+  const lines = [
+    `# context: [${s.platform}] ${s.id}${s.title ? ` — ${s.title}` : ""}`,
+    `# cwd:   ${s.cwd}`,
+  ];
+  let idxs: number[];
+  if (grep) {
+    const scored = s.turns
+      .map((t, i) => ({ i, n: t.text.toLowerCase().split(grep).length - 1 }))
+      .filter((x) => x.n > 0)
+      .sort((a, b) => b.n - a.n)
+      .slice(0, nTurns)
+      .map((x) => x.i);
+    const set = new Set<number>();
+    for (const i of scored) for (let j = i - around; j <= i + around; j++) set.add(j);
+    idxs = [...set].filter((i) => i >= 0 && i < s.turns.length).sort((a, b) => a - b);
+    lines.push(`# grep="${grep}" — top ${scored.length} hit turns ±${around}`);
+  } else {
+    const from = Math.max(0, Number(f.from || 0));
+    const to = Math.min(s.turns.length, Number(f.to || from + nTurns));
+    idxs = Array.from({ length: to - from }, (_, i) => from + i);
+    lines.push(`# no grep — showing turns ${from}-${to - 1} of ${s.turns.length}`);
+  }
+  let used = 0;
+  for (const i of idxs) {
+    const t = s.turns[i];
+    const hit = grep && t.text.toLowerCase().includes(grep) ? "  ← hit" : "";
+    const text = t.text.slice(0, Math.max(200, budget / 2));
+    lines.push(`\n## turn ${i} (${t.role})${hit}\n\n${text}`);
+    used += text.length;
+    if (used > budget) {
+      lines.push(`\n# budget_used: ${used}/${budget} chars — truncated`);
+      break;
+    }
+  }
+  return lines.join("\n");
+}
+
+export function cmdExtract(prefix: string, f: Flags): string {
+  const s = matchSession(loadAll(), prefix);
+  if (!s) return `no session matching "${prefix}"`;
+  const grep = (f.grep as string)?.toLowerCase();
+  const turns = grep ? s.turns.filter((t) => t.text.toLowerCase().includes(grep)) : s.turns;
+  if (f.json) return JSON.stringify({ ...s, turns }, null, 2);
+  const lines = [
+    `# extract: [${s.platform}] ${s.id}${s.title ? ` — ${s.title}` : ""}`,
+    `# cwd: ${s.cwd}  started: ${fmtDate(s.startedAt)}  turns shown: ${turns.length}/${s.turns.length}\n`,
+  ];
+  for (const t of turns) lines.push(`## ${t.role}\n\n${t.text}\n`);
+  return lines.join("\n");
+}
+
+export function cmdDoctor(f: Flags): string {
+  const lines = ["scrollback doctor\n"];
+  const detected = new Map(detectSources().map((d) => [d.source.id, d.roots]));
+  const only = f.platform && f.platform !== "all" ? String(f.platform) : null;
+  let total = 0;
+  for (const source of SOURCES) {
+    if (only && source.id !== only) continue;
+    const roots = detected.get(source.id);
+    if (!roots) {
+      lines.push(`  [${source.id.padEnd(11)}] — not detected`);
+      continue;
+    }
+    let n = 0;
+    for (const r of roots) {
+      try {
+        n += source.sessions(r).length;
+      } catch {}
+    }
+    total += n;
+    lines.push(`  [${source.id.padEnd(11)}] ${n} session(s)  ${roots.join(", ")}`);
+  }
+  lines.push(`\n${total} session(s) across ${only ? 1 : detected.size} detected source(s)`);
+  return lines.join("\n");
+}
