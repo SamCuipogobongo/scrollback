@@ -3,6 +3,9 @@
 // Env: CODEX_HOME, SCROLLBACK_CODEX_ROOT.
 // Codex dual-writes each message as response_item + event_msg — we only read
 // response_item/message so nothing counts twice.
+// A session can span several rollout files: resume/fork writes
+// rollout-<ts>-<session-uuid>[_<fork-uuid>].jsonl and replays the parent tail —
+// group by session uuid, sort by ts, dedupe the overlap at the seam.
 
 import { basename, join } from "node:path";
 import { existsSync } from "node:fs";
@@ -10,9 +13,17 @@ import type { Session, Source, Turn } from "../types.ts";
 import { cleanText, isUserNoise } from "../clean.ts";
 import { HOME, envRoots, readJsonl, walkFiles } from "../util.ts";
 
-function parseFile(path: string): Session | null {
-  const m = basename(path).match(/rollout-[^-]*-[0-9a-f-]+\.jsonl$/);
-  const id = (m ? m[0] : basename(path)).replace(/^rollout-|\.jsonl$/g, "");
+const UUID = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";
+
+/** rollout-2026-09-09T16-18-33-<session-uuid>[_<fork-uuid>].jsonl → {sid, ts} */
+function fileKey(path: string): { sid: string; ts: string } | null {
+  const m = basename(path).match(
+    new RegExp(`^rollout-([0-9T-]+)-(${UUID})(_${UUID})?\\.jsonl$`),
+  );
+  return m ? { ts: m[1], sid: m[2] } : null;
+}
+
+function parseFile(path: string): { startedAt: number; cwd: string; turns: Turn[] } {
   let cwd = "";
   let startedAt = 0;
   const turns: Turn[] = [];
@@ -22,10 +33,6 @@ function parseFile(path: string): Session | null {
     if (ev.type === "session_meta") {
       cwd = p.cwd || "";
       startedAt = Date.parse(p.timestamp || ev.timestamp || "") || 0;
-      continue;
-    }
-    if ((ev.type === "event_msg" && p.type === "compacted") || ev.type === "compacted") {
-      turns.length = 0;
       continue;
     }
     if (ev.type !== "response_item" || p.type !== "message") continue;
@@ -49,8 +56,22 @@ function parseFile(path: string): Session | null {
     if (p.role === "user" && isUserNoise(t)) continue;
     turns.push({ role: p.role, text: t });
   }
-  if (!turns.length) return null;
-  return { platform: "codex", id, cwd, startedAt, turns };
+  return { startedAt, cwd, turns };
+}
+
+/** Append b onto a, dropping the head of b that replays a's tail. */
+function mergeTurns(a: Turn[], b: Turn[]): Turn[] {
+  for (let k = Math.min(a.length, b.length); k > 0; k--) {
+    let ok = true;
+    for (let i = 0; i < k; i++) {
+      if (a[a.length - k + i].role !== b[i].role || a[a.length - k + i].text !== b[i].text) {
+        ok = false;
+        break;
+      }
+    }
+    if (ok) return [...a, ...b.slice(k)];
+  }
+  return [...a, ...b];
 }
 
 export const codex: Source = {
@@ -65,9 +86,27 @@ export const codex: Source = {
   },
   sessions(root) {
     if (!existsSync(root)) return [];
-    return walkFiles(root, [".jsonl"])
-      .filter((f) => basename(f).startsWith("rollout-"))
-      .map(parseFile)
-      .filter((s): s is Session => !!s);
+    const bySid = new Map<string, string[]>();
+    for (const f of walkFiles(root, [".jsonl"])) {
+      const k = fileKey(f);
+      if (!k) continue;
+      (bySid.get(k.sid) ?? bySid.set(k.sid, []).get(k.sid)!).push(k.ts + "\0" + f);
+    }
+    const out: Session[] = [];
+    for (const [sid, files] of bySid) {
+      files.sort();
+      let cwd = "";
+      let startedAt = 0;
+      let turns: Turn[] = [];
+      for (const key of files) {
+        const seg = parseFile(key.slice(key.indexOf("\0") + 1));
+        if (seg.cwd && !cwd) cwd = seg.cwd;
+        if (seg.startedAt && (!startedAt || seg.startedAt < startedAt))
+          startedAt = seg.startedAt;
+        turns = mergeTurns(turns, seg.turns);
+      }
+      if (turns.length) out.push({ platform: "codex", id: sid, cwd, startedAt, turns });
+    }
+    return out;
   },
 };

@@ -54,6 +54,38 @@ test("codex: response_item only (no event_msg double-count), bootstrap dropped",
   assert.doesNotMatch(texts(s), /environment_context/);
 });
 
+test("codex: multi-file session — fork file merges, replayed tail deduped", () => {
+  const dir = mkdtempSync(join(tmpdir(), "sb-codex-fork-"));
+  const sid = "aaaaaaa1-cf5a-7290-8599-4b92ced8dae0";
+  const fork = "bbbbbbb2-4d26-7a81-8ae1-54dc38f9b23a";
+  const meta = (cwd: string) =>
+    JSON.stringify({ type: "session_meta", payload: { cwd, timestamp: "2026-09-10T12:00:00Z" } });
+  const msg = (role: string, text: string) =>
+    JSON.stringify({
+      type: "response_item",
+      payload: { type: "message", role, content: [{ text }] },
+    });
+  mkdirSync(dir, { recursive: true });
+  // segment 1: ends mid-conversation
+  writeFileSync(
+    join(dir, `rollout-2026-09-10T12-00-00-${sid}.jsonl`),
+    [meta("/x"), msg("user", "first real question"), msg("assistant", "answer one"), msg("user", "follow up")].join("\n") + "\n",
+  );
+  // segment 2 (resume): replays last turn then continues
+  writeFileSync(
+    join(dir, `rollout-2026-09-10T12-30-00-${sid}_${fork}.jsonl`),
+    [meta("/x"), msg("user", "follow up"), msg("assistant", "answer two")].join("\n") + "\n",
+  );
+
+  const ss = codex.sessions(dir);
+  assert.equal(ss.length, 1);
+  assert.equal(ss[0].id, sid); // canonical session uuid, not filename ts
+  assert.deepEqual(
+    ss[0].turns.map((t) => t.role + ":" + t.text),
+    ["user:first real question", "assistant:answer one", "user:follow up", "assistant:answer two"],
+  );
+});
+
 test("devin: sqlite snapshot, dedupes by message_id, drops is_user_input=false", () => {
   const dir = mkdtempSync(join(tmpdir(), "sb-devin-"));
   const db = new DatabaseSync(join(dir, "sessions.db"));
