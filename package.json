@@ -1,0 +1,16 @@
+{
+  "name": "scrollback",
+  "version": "0.1.0",
+  "description": "Recall past AI conversations across Claude Code, Codex, OpenCode, and Devin — reads local session storage, nothing uploaded.",
+  "type": "module",
+  "bin": {
+    "scrollback": "./scrollback.ts"
+  },
+  "scripts": {
+    "scrollback": "node scrollback.ts"
+  },
+  "engines": {
+    "node": ">=23.6"
+  },
+  "license": "MIT"
+}
