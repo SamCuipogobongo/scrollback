@@ -1,7 +1,25 @@
 {
-  "name": "scrollback",
+  "name": "scrollback-cli",
   "version": "0.2.0",
   "description": "Recall past AI conversations across coding agents — Claude Code, Codex, Devin, OpenCode, Qwen, Gemini, Kimi, Factory, Continue, Copilot CLI. Reads local session storage; nothing is uploaded.",
+  "keywords": [
+    "ai",
+    "agents",
+    "claude",
+    "codex",
+    "devin",
+    "qwen",
+    "kimi",
+    "mcp",
+    "session",
+    "history",
+    "recall",
+    "search"
+  ],
+  "author": "Sam Cui",
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "bin": {
     "scrollback": "dist/cli.js"

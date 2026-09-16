@@ -12,7 +12,7 @@ read time (API keys, tokens, private keys never leave the store).
 ## Install
 
 ```bash
-npm i -g scrollback        # needs Node >= 22.13 (node:sqlite)
+npm i -g scrollback-cli    # needs Node >= 22.13 (node:sqlite)
 scrollback install         # auto-wire skills + MCP into detected agents
 ```
 
