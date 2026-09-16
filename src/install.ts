@@ -122,24 +122,29 @@ function mergeMcpJson(path: string, cmd: string, args: string[], dry: boolean): 
     }
   }
   doc.mcpServers = doc.mcpServers || {};
-  if (doc.mcpServers.scrollback) return `    = ${path}: already configured`;
-  doc.mcpServers.scrollback = { command: cmd, args };
+  const prev = doc.mcpServers.scrollback;
+  const next = { command: cmd, args };
+  if (prev && prev.command === cmd && JSON.stringify(prev.args) === JSON.stringify(args))
+    return `    = ${path}: already configured`;
+  doc.mcpServers.scrollback = next;
   if (!dry) {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, JSON.stringify(doc, null, 2) + "\n");
   }
-  return `    + ${path}: mcpServers.scrollback`;
+  return `    ${prev ? "~" : "+"} ${path}: mcpServers.scrollback${prev ? " (updated)" : ""}`;
 }
 
 function mergeMcpToml(path: string, cmd: string, args: string[], dry: boolean): string {
-  const block = `\n[mcp_servers.scrollback]\ncommand = "${cmd}"\nargs = [${args.map((a) => `"${a}"`).join(", ")}]\n`;
-  if (existsSync(path) && readFileSync(path, "utf8").includes("mcp_servers.scrollback"))
-    return `    = ${path}: already configured`;
+  const body = `[mcp_servers.scrollback]\ncommand = "${cmd}"\nargs = [${args.map((a) => `"${a}"`).join(", ")}]`;
+  const cur = existsSync(path) ? readFileSync(path, "utf8") : "";
+  const re = /\[mcp_servers\.scrollback\][\s\S]*?(?=\n\[|$)/;
+  const existing = cur.match(re);
+  if (existing && existing[0].trim() === body) return `    = ${path}: already configured`;
   if (!dry) {
     mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, (existsSync(path) ? readFileSync(path, "utf8") : "") + block);
+    writeFileSync(path, existing ? cur.replace(re, body + "\n") : cur + "\n" + body + "\n");
   }
-  return `    + ${path}: [mcp_servers.scrollback]`;
+  return `    ${existing ? "~" : "+"} ${path}: [mcp_servers.scrollback]${existing ? " (updated)" : ""}`;
 }
 
 export function cmdInstall(f: Record<string, string | boolean>): string {
@@ -158,12 +163,14 @@ export function cmdInstall(f: Record<string, string | boolean>): string {
     lines.push(`[${t.agent}] detected at ${t.detect}`);
     wired++;
     if (t.skillsDir) {
-      const dir = join(t.skillsDir, "scrollback");
-      if (!dry) {
-        mkdirSync(dir, { recursive: true });
-        writeFileSync(join(dir, "SKILL.md"), skillMd(cmdStr));
+      const file = join(t.skillsDir, "scrollback", "SKILL.md");
+      const content = skillMd(cmdStr);
+      const prev = existsSync(file) ? readFileSync(file, "utf8") : null;
+      if (!dry && prev !== content) {
+        mkdirSync(dirname(file), { recursive: true });
+        writeFileSync(file, content);
       }
-      lines.push(`    + ${dir}/SKILL.md`);
+      lines.push(`    ${prev === null ? "+" : prev === content ? "=" : "~"} ${file}`);
     }
     if (t.mcpJson) lines.push(mergeMcpJson(t.mcpJson, cmd, mcpArgs, dry));
     if (t.mcpToml) lines.push(mergeMcpToml(t.mcpToml, cmd, mcpArgs, dry));
