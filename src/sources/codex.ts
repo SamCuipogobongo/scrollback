@@ -23,9 +23,15 @@ function fileKey(path: string): { sid: string; ts: string } | null {
   return m ? { ts: m[1], sid: m[2] } : null;
 }
 
-function parseFile(path: string): { startedAt: number; cwd: string; turns: Turn[] } {
+function parseFile(path: string): {
+  startedAt: number;
+  cwd: string;
+  turns: Turn[];
+  startsCompacted: boolean;
+} {
   let cwd = "";
   let startedAt = 0;
+  let startsCompacted = false;
   const turns: Turn[] = [];
   let bootstrapped = false;
   for (const ev of readJsonl(path)) {
@@ -33,6 +39,14 @@ function parseFile(path: string): { startedAt: number; cwd: string; turns: Turn[
     if (ev.type === "session_meta") {
       cwd = p.cwd || "";
       startedAt = Date.parse(p.timestamp || ev.timestamp || "") || 0;
+      continue;
+    }
+    // context compaction: earlier turns are real history but the agent saw a
+    // summary — mark them instead of dropping. A segment opening with one
+    // means the whole previous file is pre-compact.
+    if ((ev.type === "event_msg" && p.type === "compacted") || ev.type === "compacted") {
+      if (!turns.length) startsCompacted = true;
+      for (const t of turns) t.preCompact = true;
       continue;
     }
     if (ev.type !== "response_item" || p.type !== "message") continue;
@@ -56,7 +70,7 @@ function parseFile(path: string): { startedAt: number; cwd: string; turns: Turn[
     if (p.role === "user" && isUserNoise(t)) continue;
     turns.push({ role: p.role, text: t });
   }
-  return { startedAt, cwd, turns };
+  return { startedAt, cwd, turns, startsCompacted };
 }
 
 /** Append b onto a, dropping the head of b that replays a's tail. */
@@ -103,6 +117,7 @@ export const codex: Source = {
         if (seg.cwd && !cwd) cwd = seg.cwd;
         if (seg.startedAt && (!startedAt || seg.startedAt < startedAt))
           startedAt = seg.startedAt;
+        if (seg.startsCompacted) for (const t of turns) t.preCompact = true;
         turns = mergeTurns(turns, seg.turns);
       }
       if (turns.length) out.push({ platform: "codex", id: sid, cwd, startedAt, turns });

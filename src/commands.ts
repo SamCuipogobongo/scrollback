@@ -54,6 +54,50 @@ export function cmdList(f: Flags): string {
   return lines.join("\n");
 }
 
+// Paragraph-aligned excerpt: split on blank lines (fenced code blocks kept
+// whole), prefer the chunk containing ALL query tokens, fall back to the
+// rarest-token anchor. Better than a fixed head-of-turn window when the
+// hit lives deep inside a long turn.
+function bestExcerpt(text: string, tokens: string[], budget = 400): string {
+  if (text.length <= budget) return text;
+  const lines = text.split("\n");
+  const chunks: string[] = [];
+  let cur: string[] = [];
+  let inFence = false;
+  for (const l of lines) {
+    if (/^\s*```/.test(l)) inFence = !inFence;
+    if (!inFence && !l.trim()) {
+      if (cur.length) chunks.push(cur.join("\n"));
+      cur = [];
+    } else cur.push(l);
+  }
+  if (cur.length) chunks.push(cur.join("\n"));
+  if (chunks.length <= 1) return text.slice(0, budget);
+
+  const low = (s: string) => s.toLowerCase();
+  const hitsOf = (c: string) => tokens.reduce((n, t) => n + low(c).split(t).length - 1, 0);
+  let bestI = -1,
+    bestHits = -1;
+  for (let i = 0; i < chunks.length; i++) {
+    const c = chunks[i];
+    const n = hitsOf(c);
+    if (tokens.every((t) => low(c).includes(t)) && n > bestHits) {
+      bestI = i;
+      bestHits = n;
+    }
+  }
+  if (bestI < 0) {
+    const counts = tokens.map((t) => low(text).split(t).length - 1);
+    const rare = tokens[counts.indexOf(Math.min(...counts))];
+    bestI = chunks.findIndex((c) => low(c).includes(rare));
+    if (bestI < 0) bestI = 0;
+  }
+  let ex = chunks[bestI];
+  for (let j = bestI + 1; j < chunks.length && ex.length + chunks[j].length + 2 <= budget; j++)
+    ex += "\n\n" + chunks[j];
+  return ex.slice(0, budget);
+}
+
 export function cmdSearch(q: string, f: Flags): string {
   const sessions = applyScope(loadAll(f.platform as string), f);
   const tokens = q.toLowerCase().split(/\s+/).filter(Boolean);
@@ -91,7 +135,7 @@ export function cmdSearch(q: string, f: Flags): string {
       best = s.turns.find((t) => t.text.toLowerCase().includes(rare)) || s.turns[0];
     }
     const score = (3 * uh + ah) / Math.max(s.turns.length, 1);
-    hits.push({ s, score, uh, ah, excerpt: best.text.slice(0, 400), role: best.role });
+    hits.push({ s, score, uh, ah, excerpt: bestExcerpt(best.text, tokens), role: best.role });
   }
   hits.sort((a, b) => b.score - a.score);
   const lim = Number(f.limit || 50);
@@ -143,7 +187,8 @@ export function cmdContext(prefix: string, f: Flags): string {
     const t = s.turns[i];
     const hit = grep && t.text.toLowerCase().includes(grep) ? "  ← hit" : "";
     const text = t.text.slice(0, Math.max(200, budget / 2));
-    lines.push(`\n## turn ${i} (${t.role})${hit}\n\n${text}`);
+    const tag = t.preCompact ? " [compact]" : "";
+    lines.push(`\n## turn ${i} (${t.role})${tag}${hit}\n\n${text}`);
     used += text.length;
     if (used > budget) {
       lines.push(`\n# budget_used: ${used}/${budget} chars — truncated`);
@@ -163,7 +208,8 @@ export function cmdExtract(prefix: string, f: Flags): string {
     `# extract: [${s.platform}] ${s.id}${s.title ? ` — ${s.title}` : ""}`,
     `# cwd: ${s.cwd}  started: ${fmtDate(s.startedAt)}  turns shown: ${turns.length}/${s.turns.length}\n`,
   ];
-  for (const t of turns) lines.push(`## ${t.role}\n\n${t.text}\n`);
+  for (const t of turns)
+    lines.push(`## ${t.role}${t.preCompact ? " [compact]" : ""}\n\n${t.text}\n`);
   return lines.join("\n");
 }
 

@@ -6,6 +6,8 @@ export type Role = "user" | "assistant";
 export interface Turn {
   role: Role;
   text: string;
+  /** predates a context-compaction event inside the session (codex) */
+  preCompact?: boolean;
 }
 
 export interface Session {
