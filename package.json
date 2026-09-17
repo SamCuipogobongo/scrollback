@@ -1,7 +1,7 @@
 {
   "name": "sam-scrollback",
   "version": "0.2.1",
-  "description": "Recall past AI conversations across coding agents — Claude Code, Codex, Devin, OpenCode, Qwen, Gemini, Kimi, Factory, Continue, Copilot CLI. Reads local session storage; nothing is uploaded.",
+  "description": "The open-source admin plane for every coding agent — recall past AI conversations across Claude Code, Codex, Devin, OpenCode, Qwen, Gemini, Kimi, Factory, Continue, Copilot CLI, Cursor, Zed and more. Reads local session storage; nothing is uploaded.",
   "keywords": [
     "ai",
     "agents",

@@ -1,15 +1,19 @@
 # scrollback
 
+**The open-source admin plane for every coding agent.**
+
 [![npm](https://img.shields.io/npm/v/sam-scrollback)](https://www.npmjs.com/package/sam-scrollback)
 
-Recall past AI conversations across coding agents — Claude Code, Codex, Devin,
-OpenCode, Qwen Code, Gemini CLI, Kimi Code, Factory Droid, Continue, Copilot CLI,
-Cursor, Zed, Copilot Chat, Cline/Roo/Kilo, Trae, Qoder, CodeBuddy, Aider, Goose,
-Antigravity.
+- **history** — reads what every agent already wrote: Claude Code, Codex,
+  Devin, OpenCode, Qwen Code, Gemini CLI, Kimi Code, Factory Droid, Continue,
+  Copilot CLI, Cursor, Zed, Copilot Chat, Cline/Roo/Kilo, Trae, Qoder,
+  CodeBuddy, Aider, Goose, Antigravity — one search box across all of them
+- **fleet** *(planned)* — every agent on one screen
+- **comms** *(planned)* — a durable channel agents reach each other through
 
-Reads each platform's local session storage directly. Nothing is uploaded, no
-daemon, no index — a query scans the stores in place. Secrets are redacted at
-read time (API keys, tokens, private keys never leave the store).
+Local-first: nothing is uploaded, no daemon, no index — a query scans the
+stores in place. Secrets are redacted at read time (API keys, tokens, private
+keys never leave the store).
 
 ## Install
 
