@@ -15,11 +15,17 @@ import {
   pidAlive,
   readCursor,
   readEvents,
+  readEventsFrom,
   readMeta,
+  readWorkersSidecar,
+  updateWorkerState,
   validName,
   watchEvents,
+  withLock,
   writeCursor,
+  writeWorkersSidecar,
 } from "./store.ts";
+import type { WorkerState } from "./store.ts";
 
 type Flags = Record<string, string | boolean>;
 
@@ -69,10 +75,10 @@ export function cmdChannelSend(name: string, body: string, f: Flags): string {
 export function cmdChannelRead(name: string, f: Flags): string {
   const dir = resolveChannel(name, !!f.global);
   const meta = readMeta(dir);
-  const events = readEvents(dir);
+  const from = f.from ? Number(f.from) : 0;
+  const events = from ? readEventsFrom(dir, from) : readEvents(dir);
   const lines = [`# channel ${name}${meta?.description ? ` — ${meta.description}` : ""}\n`];
   const kinds = f.kinds ? new Set(String(f.kinds).split(",")) : null;
-  const from = f.from ? Number(f.from) : 0;
   for (const ev of events) {
     if (ev.seq <= from) continue;
     if (kinds && !kinds.has(ev.kind)) continue;
@@ -122,13 +128,16 @@ export function cmdChannelList(f: Flags): string {
   const lines = ["channel  (bucket)\n"];
   for (const c of rows.sort((a, b) => a.bucket.localeCompare(b.bucket) || a.name.localeCompare(b.name))) {
     const meta = readMeta(c.dir);
-    const events = readEvents(c.dir);
-    const last = events.length ? events[events.length - 1] : null;
-    const workers = new Set(events.map((e) => e.worker).filter(Boolean));
+    // seq is gapless from 1 → lastSeq doubles as the event count; the tail
+    // event and worker count come from sidecars, so list stays O(channels)
+    const count = lastSeq(c.dir);
+    const tail = count ? readEventsFrom(c.dir, count - 1) : [];
+    const last = tail.length ? tail[tail.length - 1] : null;
+    const workers = workersForDir(c.dir).size;
     const bucket = c.bucket === GLOBAL_BUCKET ? "global" : c.bucket;
     lines.push(
       `${c.name}${meta?.type === "forum" ? " (forum)" : ""}  ${bucket}` +
-        `  events=${events.length}  workers=${workers.size}` +
+        `  events=${count}  workers=${workers}` +
         (last ? `  last: ${fmtTs(last.ts)} ${last.kind} by ${last.by}` : ""),
     );
   }
@@ -145,8 +154,8 @@ export function cmdInbox(worker: string, f: Flags): string {
   let unread = 0;
   for (const dir of channels) {
     const cursor = readCursor(dir, worker);
-    const events = readEvents(dir);
-    const pending = events.filter(
+    // backward scan stops at the cursor — cost is O(unread), not O(log size)
+    const pending = readEventsFrom(dir, cursor).filter(
       (e) => e.kind === "message" && e.seq > cursor && (e.to === worker || (f.all && !e.to)),
     );
     if (!pending.length) continue;
@@ -166,69 +175,44 @@ export function cmdInbox(worker: string, f: Flags): string {
 
 // ---- worker projection over event log ----
 
-export interface WorkerView {
-  worker: string;
-  agent?: string;
-  pid?: number;
+export interface WorkerView extends WorkerState {
   channelDir: string;
   channelName: string;
-  lifecycle: "starting" | "running" | "done" | "error" | "killed" | "crashed";
-  activity: "idle" | "mid-turn";
-  lastKind: string;
-  lastTs: string;
 }
 
-export function projectWorkers(events: ReturnType<typeof readEvents>): Map<string, WorkerView> {
-  const workers = new Map<string, WorkerView>();
+export function projectWorkers(events: ReturnType<typeof readEvents>): Map<string, WorkerState> {
+  const workers = new Map<string, WorkerState>();
   const get = (w: string) => {
     let v = workers.get(w);
     if (!v) {
-      v = { worker: w, channelDir: "", channelName: "", lifecycle: "starting", activity: "idle", lastKind: "", lastTs: "" };
+      v = { worker: w, lifecycle: "starting", activity: "idle", lastKind: "", lastTs: "" };
       workers.set(w, v);
     }
     return v;
   };
   for (const ev of events) {
-    const w = ev.worker || (ev.kind === "spawned" ? ev.by : undefined);
+    const w = ev.worker || (ev.kind === "spawned" ? String(ev.by) : undefined);
     if (!w) continue;
-    const v = get(w);
-    v.lastKind = ev.kind;
-    v.lastTs = ev.ts;
-    if (ev.agent) v.agent = ev.agent;
-    if (ev.pid) v.pid = ev.pid;
-    switch (ev.kind) {
-      case "spawned":
-        v.lifecycle = "starting";
-        break;
-      case "turn_started":
-        v.lifecycle = "running";
-        v.activity = "mid-turn";
-        break;
-      case "turn_finished":
-      case "waiting":
-      case "awake":
-        if (!isTerminal(v.lifecycle)) v.lifecycle = "running";
-        v.activity = "idle";
-        break;
-      case "progress":
-        if (!isTerminal(v.lifecycle)) v.lifecycle = "running";
-        break;
-      case "done":
-        v.lifecycle = "done";
-        v.activity = "idle";
-        break;
-      case "error":
-        v.lifecycle = "error";
-        break;
-      case "killed":
-        v.lifecycle = "killed";
-        break;
-      case "interrupted":
-        v.activity = "idle";
-        break;
-    }
+    updateWorkerState(get(w), ev);
   }
   return workers;
+}
+
+/**
+ * Worker projection for one channel: sidecar when it exists, else one full
+ * scan under the lock that then writes the sidecar — subsequent reads (and
+ * every append) are O(1).
+ */
+function workersForDir(dir: string): Map<string, WorkerState> {
+  const cached = readWorkersSidecar(dir);
+  if (cached) return cached;
+  return withLock(dir, () => {
+    const again = readWorkersSidecar(dir);
+    if (again) return again;
+    const ws = projectWorkers(readEvents(dir));
+    writeWorkersSidecar(dir, ws);
+    return ws;
+  });
 }
 
 const TERMINAL = new Set(["done", "error", "killed"]);
@@ -239,10 +223,9 @@ export function cmdWorkers(f: Flags): string {
   let n = 0;
   for (const c of listChannels()) {
     const meta = readMeta(c.dir);
-    const ws = projectWorkers(readEvents(c.dir));
-    for (const v of ws.values()) {
-      v.channelName = meta?.name || c.name;
-      v.channelDir = c.dir;
+    const ws = workersForDir(c.dir);
+    for (const s of ws.values()) {
+      const v: WorkerView = { ...s, channelDir: c.dir, channelName: meta?.name || c.name };
       if (!isTerminal(v.lifecycle) && !pidAlive(v.pid)) v.lifecycle = "crashed";
       if (f.alive && isTerminal(v.lifecycle)) continue;
       n++;

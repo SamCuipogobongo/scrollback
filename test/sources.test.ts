@@ -234,9 +234,16 @@ test("antigravity: transcript.jsonl under brain/<conv>", () => {
 });
 
 test("channel: event log, seq, inbox cursor, worker projection, Source view", async () => {
-  const { appendEvent, readEvents, createChannel, readCursor, writeCursor } = await import(
-    "../src/channel/store.ts"
-  );
+  const {
+    appendEvent,
+    readEvents,
+    readEventsFrom,
+    createChannel,
+    readCursor,
+    readWorkersSidecar,
+    validName,
+    writeCursor,
+  } = await import("../src/channel/store.ts");
   const { projectWorkers } = await import("../src/channel/cmd.ts");
   const { channelSource } = await import("../src/sources/channel.ts");
 
@@ -286,6 +293,23 @@ test("channel: event log, seq, inbox cursor, worker projection, Source view", as
   assert.equal(ss.length, 1);
   assert.equal(ss[0].id, "bkt/ops");
   assert.match(texts(ss[0]), /fix the queue/);
+
+  // readEventsFrom: backward scan returns only seq > from
+  assert.deepEqual(readEventsFrom(cdir, 3).map((e) => e.seq), [4, 5]);
+  assert.deepEqual(readEventsFrom(cdir, 5).map((e) => e.seq), []);
+
+  // workers sidecar: sidecar absent → append doesn't create it; once built,
+  // later appends update it incrementally
+  assert.equal(readWorkersSidecar(cdir), null);
+  const { writeWorkersSidecar } = await import("../src/channel/store.ts");
+  writeWorkersSidecar(cdir, projectWorkers(readEvents(cdir)));
+  appendEvent(cdir, { kind: "spawned", by: "user", worker: "w2", agent: "codex", pid: 123 });
+  assert.equal(readWorkersSidecar(cdir)?.get("w2")?.lifecycle, "starting");
+
+  // dot-only names would escape the bucket via path join
+  assert.equal(validName(".."), false);
+  assert.equal(validName("."), false);
+  assert.equal(validName("ops-1"), true);
 });
 
 test("secrets are redacted everywhere", () => {

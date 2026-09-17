@@ -15,23 +15,9 @@ CodeBuddy, Aider, Goose, Antigravity.
 Local-first: nothing is uploaded, no daemon, no index — a query scans the
 stores in place. Secrets are redacted at read time.
 
-```text
-$ scrollback doctor
-  [claude     ] 132 session(s)  ~/.claude/projects
-  [codex      ]  47 session(s)  ~/.codex/sessions
-  [devin      ]  39 session(s)  ~/.local/share/devin/cli
-  [opencode   ]   1 session(s)  ~/.local/share/opencode/storage
-  …
-  219 session(s) across 5 detected source(s)
-
-$ scrollback search "jwt refresh" --global
-[claude ] 2026-09-10  sess-aaa  ~/myapp   hits=4   "…flaky jwt refresh…"
-[codex  ] 2026-09-10  deadbeef  ~/myapp   hits=2   "…migrate the user table…"
-
-$ scrollback context sess-aaa --grep jwt --turns 2
-# context: [claude] sess-aaa  ·  ~/myapp
-## turn 3 (assistant) — …the refresh token race is in auth.ts:41…
-```
+<p align="center">
+  <img src="assets/demo.gif" alt="scrollback demo" width="720">
+</p>
 
 ## Why scrollback
 

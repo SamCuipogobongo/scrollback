@@ -8,6 +8,7 @@ import {
   appendFileSync,
   closeSync,
   existsSync,
+  fstatSync,
   mkdirSync,
   openSync,
   readFileSync,
@@ -67,6 +68,8 @@ const metaPath = (dir: string) => join(dir, "meta.json");
 const seqPath = (dir: string) => join(dir, ".seq");
 const lockPath = (dir: string) => join(dir, ".lock");
 const cursorDir = (dir: string) => join(dir, ".cursors");
+const keysPath = (dir: string) => join(dir, ".keys");
+const workersPath = (dir: string) => join(dir, ".workers.json");
 
 const NAME_RE = /^[A-Za-z0-9._-]+$/;
 const DOTS_RE = /^\.+$/; // "."/".." would escape the bucket via path join
@@ -123,7 +126,7 @@ function releaseLock(lock: string): void {
   } catch {}
 }
 
-function withLock<T>(dir: string, fn: () => T): T {
+export function withLock<T>(dir: string, fn: () => T): T {
   const lock = lockPath(dir);
   acquireLock(lock);
   try {
@@ -201,9 +204,109 @@ export type EventDraft = { kind: string; by: string; ts?: string } & Record<
   unknown
 >;
 
+// ---- idempotency: .keys sidecar (key\t<event json>) — O(keyed), not O(log) ----
+
+function findByKey(dir: string, key: string): ChannelEvent | null {
+  let text: string;
+  try {
+    text = readFileSync(keysPath(dir), "utf8");
+  } catch {
+    return null;
+  }
+  for (const line of text.split("\n")) {
+    const tab = line.indexOf("\t");
+    if (tab < 0 || line.slice(0, tab) !== key) continue;
+    try {
+      return JSON.parse(line.slice(tab + 1));
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+// ---- workers sidecar: .workers.json — projected per append, O(1) reads ----
+
+export type Lifecycle = "starting" | "running" | "done" | "error" | "killed" | "crashed";
+export interface WorkerState {
+  worker: string;
+  agent?: string;
+  pid?: number;
+  lifecycle: Lifecycle;
+  activity: "idle" | "mid-turn";
+  lastKind: string;
+  lastTs: string;
+}
+
+const TERMINAL_KINDS = new Set(["done", "error", "killed"]);
+
+/** fold one event into a worker's projected state (shared by sidecar + full scans) */
+export function updateWorkerState(v: WorkerState, ev: ChannelEvent): void {
+  v.lastKind = ev.kind;
+  v.lastTs = ev.ts;
+  if (ev.agent) v.agent = String(ev.agent);
+  if (ev.pid) v.pid = Number(ev.pid);
+  switch (ev.kind) {
+    case "spawned":
+      v.lifecycle = "starting";
+      break;
+    case "turn_started":
+      v.lifecycle = "running";
+      v.activity = "mid-turn";
+      break;
+    case "turn_finished":
+    case "waiting":
+    case "awake":
+      if (!TERMINAL_KINDS.has(v.lifecycle)) v.lifecycle = "running";
+      v.activity = "idle";
+      break;
+    case "progress":
+      if (!TERMINAL_KINDS.has(v.lifecycle)) v.lifecycle = "running";
+      break;
+    case "done":
+    case "error":
+    case "killed":
+      v.lifecycle = ev.kind;
+      v.activity = "idle";
+      break;
+    case "interrupted":
+      v.activity = "idle";
+      break;
+  }
+}
+
+export function readWorkersSidecar(dir: string): Map<string, WorkerState> | null {
+  try {
+    const obj = JSON.parse(readFileSync(workersPath(dir), "utf8"));
+    return new Map(Object.entries(obj));
+  } catch {
+    return null;
+  }
+}
+
+export function writeWorkersSidecar(dir: string, ws: Map<string, WorkerState>): void {
+  writeFileSync(workersPath(dir), JSON.stringify(Object.fromEntries(ws)));
+}
+
+function updateWorkersSidecar(dir: string, ev: ChannelEvent): void {
+  const w = ev.worker || (ev.kind === "spawned" ? String(ev.by) : undefined);
+  if (!w) return;
+  const ws = readWorkersSidecar(dir);
+  if (!ws) return; // no sidecar yet — read side lazy-builds from the full log
+  let v = ws.get(w);
+  if (!v) {
+    v = { worker: w, lifecycle: "starting", activity: "idle", lastKind: "", lastTs: "" };
+    ws.set(w, v);
+  }
+  updateWorkerState(v, ev);
+  writeWorkersSidecar(dir, ws);
+}
+
 function appendEventLocked(dir: string, partial: EventDraft): ChannelEvent {
   if (partial.idempotencyKey) {
-    const dup = readEvents(dir).find((e) => e.idempotencyKey === partial.idempotencyKey);
+    const key = String(partial.idempotencyKey);
+    if (/[\t\n]/.test(key)) throw new Error("idempotencyKey must not contain tab/newline");
+    const dup = findByKey(dir, key);
     if (dup) return dup;
   }
   const ev = {
@@ -211,8 +314,12 @@ function appendEventLocked(dir: string, partial: EventDraft): ChannelEvent {
     seq: lastSeq(dir) + 1,
     ts: partial.ts || new Date().toISOString(),
   } as ChannelEvent;
-  appendFileSync(eventsPath(dir), JSON.stringify(ev) + "\n");
+  const line = JSON.stringify(ev);
+  appendFileSync(eventsPath(dir), line + "\n");
   writeFileSync(seqPath(dir), String(ev.seq));
+  if (partial.idempotencyKey)
+    appendFileSync(keysPath(dir), `${partial.idempotencyKey}\t${line}\n`);
+  updateWorkersSidecar(dir, ev);
   return ev;
 }
 
@@ -233,6 +340,63 @@ export function readEvents(dir: string): ChannelEvent[] {
     } catch {}
   }
   return out;
+}
+
+const CHUNK = 65536;
+
+/**
+ * Events with seq > fromSeq, scanned backward in 64KB chunks — stops at the
+ * first seq <= fromSeq, so cost is O(new events + one chunk), not O(log size).
+ */
+export function readEventsFrom(dir: string, fromSeq: number): ChannelEvent[] {
+  const f = eventsPath(dir);
+  let size = 0;
+  try {
+    size = statSync(f).size;
+  } catch {
+    return [];
+  }
+  if (!size) return [];
+  const fd = openSync(f, "r");
+  try {
+    const out: ChannelEvent[] = [];
+    let pos = size;
+    let carry = ""; // partial line at the chunk's leading edge
+    let done = false;
+    while (pos > 0 && !done) {
+      const start = Math.max(0, pos - CHUNK);
+      const buf = Buffer.alloc(pos - start);
+      readSync(fd, buf, 0, buf.length, start);
+      const text = buf.toString("utf8") + carry;
+      pos = start;
+      const lines = text.split("\n");
+      carry = lines.shift() ?? ""; // may be a partial first line
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const t = lines[i].trim();
+        if (!t) continue;
+        let ev: ChannelEvent;
+        try {
+          ev = JSON.parse(t);
+        } catch {
+          continue;
+        }
+        if (ev.seq <= fromSeq) {
+          done = true;
+          break;
+        }
+        out.unshift(ev);
+      }
+    }
+    if (!done && carry.trim() && pos === 0) {
+      try {
+        const ev: ChannelEvent = JSON.parse(carry.trim());
+        if (ev.seq > fromSeq) out.unshift(ev);
+      } catch {}
+    }
+    return out;
+  } finally {
+    closeSync(fd);
+  }
 }
 
 export function readMeta(dir: string): ChannelMeta | null {
@@ -277,7 +441,7 @@ export function writeCursor(dir: string, worker: string, seq: number): void {
   writeFileSync(join(cursorDir(dir), worker), String(seq));
 }
 
-// ---- watch: byte-offset tail-follow with partial-line carry ----
+// ---- watch: open fd + byte-offset tail-follow; reads only appended bytes ----
 
 export async function* watchEvents(
   dir: string,
@@ -286,17 +450,27 @@ export async function* watchEvents(
   const f = eventsPath(dir);
   let offset = 0;
   let carry = "";
+  let fd = -1;
   const deadline = opts.timeoutMs ? Date.now() + opts.timeoutMs : Infinity;
-  while (Date.now() < deadline && !opts.signal?.aborted) {
-    if (existsSync(f)) {
-      const size = statSync(f).size;
+  try {
+    while (Date.now() < deadline && !opts.signal?.aborted) {
+      let size = 0;
+      if (fd < 0) {
+        try {
+          fd = openSync(f, "r");
+        } catch {
+          fd = -1; // channel file may not exist yet
+        }
+      }
+      if (fd >= 0) size = fstatSync(fd).size;
       if (size < offset) {
         offset = 0;
         carry = "";
       }
       if (size > offset) {
-        const buf = readFileSync(f); // small files; simple and correct
-        const text = carry + buf.subarray(offset).toString("utf8");
+        const buf = Buffer.alloc(size - offset);
+        readSync(fd, buf, 0, buf.length, offset);
+        const text = carry + buf.toString("utf8");
         const lines = text.split("\n");
         carry = lines.pop() ?? "";
         offset = size;
@@ -314,7 +488,9 @@ export async function* watchEvents(
           yield ev;
         }
       }
+      await new Promise((r) => setTimeout(r, 150));
     }
-    await new Promise((r) => setTimeout(r, 150));
+  } finally {
+    if (fd >= 0) closeSync(fd);
   }
 }
