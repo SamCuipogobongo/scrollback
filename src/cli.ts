@@ -5,6 +5,17 @@
 import { cmdContext, cmdDoctor, cmdExtract, cmdList, cmdProjects, cmdSearch, cmdStats } from "./commands.ts";
 import { cmdInstall } from "./install.ts";
 import { serveMcp } from "./mcp.ts";
+import {
+  cmdChannelCreate,
+  cmdChannelList,
+  cmdChannelRead,
+  cmdChannelSend,
+  cmdChannelWait,
+  cmdChannelWatch,
+  cmdInbox,
+  cmdSpawn,
+  cmdWorkers,
+} from "./channel/cmd.ts";
 
 interface Args {
   _: string[];
@@ -25,7 +36,12 @@ function parseArgs(argv: string[]): Args {
   return { _, flags };
 }
 
-const HELP = `scrollback — recall past AI conversations across coding agents
+function usage(msg: string): undefined {
+  console.error(`usage: scrollback ${msg}`);
+  process.exit(1);
+}
+
+const HELP = `scrollback — the open-source admin plane for every coding agent
 
   scrollback projects [--since D]              rank project cwds by last activity
   scrollback list [--global|--cwd p] [--since D]
@@ -36,6 +52,17 @@ const HELP = `scrollback — recall past AI conversations across coding agents
   scrollback stats                             per-platform + monthly activity
   scrollback install [--dry-run]               wire skills + MCP into agents
   scrollback --mcp                             run as MCP server (stdio)
+
+channels (the admin plane — ~/.scrollback/channels):
+  scrollback channel create <name> [--global] [--desc d] [--type chat|forum]
+  scrollback channel send <name> "<body>" [--to w] [--by b] [--kind k] [--key k]
+  scrollback channel read <name> [--from seq] [--kinds a,b]
+  scrollback channel watch <name> [--from seq] [--kinds a,b] [--timeout s]
+  scrollback channel wait <name> [--kinds a,b] [--timeout s]   first match wins
+  scrollback channel list                      all channels, all buckets
+  scrollback inbox <worker> [--channel c] [--all] [--mark]
+  scrollback workers [--alive]                 fleet view: state per worker
+  scrollback spawn <claude|codex> "<task>" [--channel c]   run agent as worker
 
 platforms (auto-detected):
   claude       ~/.claude/projects/*/*.jsonl
@@ -58,7 +85,7 @@ platforms (auto-detected):
 override any root with SCROLLBACK_<PLATFORM>_ROOT (':'-separated).
 session ids accept any unique prefix.`;
 
-export function main() {
+export async function main() {
   const { _, flags } = parseArgs(process.argv.slice(2));
   if (flags.mcp) {
     serveMcp();
@@ -73,7 +100,7 @@ export function main() {
     console.log("scrollback 0.2.0");
     return;
   }
-  let out: string;
+  let out: string | undefined;
   switch (cmd) {
     case "projects":
       out = cmdProjects(flags);
@@ -111,6 +138,50 @@ export function main() {
     case "install":
       out = cmdInstall(flags);
       break;
+    case "channel": {
+      const sub = _[1];
+      const name = _[2];
+      const body = _[3];
+      switch (sub) {
+        case "create":
+          if (!name) return usage("channel create <name>");
+          out = cmdChannelCreate(name, flags);
+          break;
+        case "send":
+          if (!name || !body) return usage('channel send <name> "<body>"');
+          out = cmdChannelSend(name, body, flags);
+          break;
+        case "read":
+          if (!name) return usage("channel read <name>");
+          out = cmdChannelRead(name, flags);
+          break;
+        case "watch":
+          if (!name) return usage("channel watch <name>");
+          out = await cmdChannelWatch(name, flags);
+          break;
+        case "wait":
+          if (!name) return usage("channel wait <name>");
+          out = await cmdChannelWait(name, flags);
+          break;
+        case "list":
+          out = cmdChannelList(flags);
+          break;
+        default:
+          return usage("channel create|send|read|watch|wait|list");
+      }
+      break;
+    }
+    case "inbox":
+      if (!_[1]) return usage("inbox <worker>");
+      out = cmdInbox(_[1], flags);
+      break;
+    case "workers":
+      out = cmdWorkers(flags);
+      break;
+    case "spawn":
+      if (!_[1] || !_[2]) return usage('spawn <claude|codex> "<task>"');
+      out = cmdSpawn(_[1], _[2], flags);
+      break;
     default:
       console.error(`unknown command: ${cmd}\n`);
       console.log(HELP);
@@ -119,4 +190,7 @@ export function main() {
   if (out !== undefined) console.log(out);
 }
 
-main();
+main().catch((e) => {
+  console.error(e?.message || String(e));
+  process.exit(1);
+});

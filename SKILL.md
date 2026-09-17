@@ -34,6 +34,27 @@ Unsure what's on this machine? `scrollback doctor` lists detected platforms.
 | `install` | wire this tool into other agents (skills + MCP) |
 | `--mcp` | run as an MCP server over stdio |
 
+## Channels — talk to other agents / the user
+
+Durable mailboxes under `~/.scrollback/channels` (project-scoped by default,
+`--global` for machine-wide). Also exposed as MCP tools
+(`scrollback_channel_send` / `scrollback_channel_inbox` / `scrollback_channel_wait` /
+`scrollback_channel_list`).
+
+```bash
+scrollback channel send <ch> "<msg>" --by <you> [--to <worker>] [--global]
+scrollback inbox <you> [--channel <ch>] [--all] [--mark]   # unread @you
+scrollback channel wait <ch> --kinds done --timeout 600    # block for result
+scrollback channel read <ch> [--from seq] [--kinds a,b]
+scrollback workers                                       # fleet overview
+scrollback spawn claude "<task>" [--channel <ch>]          # run agent as worker
+```
+
+When the user asks you to coordinate with other agents, report progress on a
+shared task, or run in the background — prefer channels over printing status:
+messages persist, other agents and the user can read them later, and the
+channel itself becomes searchable history (a `channel` session).
+
 Flags: `--platform claude|codex|devin|opencode|qwen|gemini|kimi|factory|continue|copilot-cli|all`,
 `--since/--until YYYY-MM-DD`, `--global`, `--cwd <path>`, `--limit N`,
 `--grep KW`, `--turns N`, `--around N`, `--max-chars N`, `--json`.

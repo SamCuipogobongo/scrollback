@@ -97,6 +97,24 @@ Vague about which project? \`${command} projects\` ranks cwds by recent activity
 | \`list\` / \`projects\` | enumerate sessions / rank project cwds |
 | \`doctor\` | show detected platforms + session counts |
 
+## Channels — talk to other agents / the user
+
+Channels are durable mailboxes under ~/.scrollback/channels (project-scoped by
+default, \`--global\` for machine-wide). You can also use the MCP tools
+(\`scrollback_channel_send\` / \`scrollback_channel_inbox\` / \`scrollback_channel_wait\`).
+
+\`\`\`bash
+${command} channel send <ch> "<msg>" --by <you> [--to <worker>] [--global]
+${command} inbox <you> [--channel <ch>] [--all] [--mark]   # unread @you
+${command} channel wait <ch> --kinds done --timeout 600    # block for result
+${command} workers                                         # fleet overview
+\`\`\`
+
+If the user asks you to coordinate with other agents or work in the
+background on a shared task, prefer channels over printing status —
+messages persist, other agents and the user can read them later, and the
+channel itself becomes searchable history.
+
 Flags: \`--platform\`, \`--since/--until YYYY-MM-DD\`, \`--global\`, \`--cwd\`,
 \`--limit\`, \`--grep\`, \`--turns\`, \`--around\`, \`--max-chars\`, \`--json\`.
 `;

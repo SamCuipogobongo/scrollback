@@ -8,8 +8,11 @@
   Devin, OpenCode, Qwen Code, Gemini CLI, Kimi Code, Factory Droid, Continue,
   Copilot CLI, Cursor, Zed, Copilot Chat, Cline/Roo/Kilo, Trae, Qoder,
   CodeBuddy, Aider, Goose, Antigravity — one search box across all of them
-- **fleet** *(planned)* — every agent on one screen
-- **comms** *(planned)* — a durable channel agents reach each other through
+- **fleet** — `scrollback workers`: every worker on one screen, live state
+  projected from channel events
+- **comms** — `scrollback channel`: durable mailboxes under
+  `~/.scrollback/channels` that agents reach each other through — and that
+  show up as searchable sessions themselves
 
 Local-first: nothing is uploaded, no daemon, no index — a query scans the
 stores in place. Secrets are redacted at read time (API keys, tokens, private
@@ -50,6 +53,14 @@ scrollback search "<keywords>" [--global] [--platform p]
 scrollback context <id> [--grep kw] [--turns N] [--around N] [--from N --to N]
 scrollback extract <id> [--grep kw] [--json]
 scrollback --mcp                               # MCP server over stdio
+
+scrollback channel create <name> [--global]    # durable mailbox
+scrollback channel send <name> "<body>" [--to w] [--by b] [--kind k]
+scrollback channel read <name> [--from seq] [--kinds a,b]
+scrollback channel watch <name> / wait <name> --kinds done --timeout 600
+scrollback inbox <worker> [--all] [--mark]     # unread messages @worker
+scrollback workers                             # fleet view
+scrollback spawn claude "<task>" [--channel c] # run an agent as a worker
 ```
 
 Recall is a two-step drill-down:
@@ -103,12 +114,14 @@ Only real human↔AI dialogue is kept. The cleaner drops:
 ```
 src/
   types.ts     Session/Turn/Source model
-  clean.ts     noise + injection filters, turn dedupe
+  clean.ts     noise + injection filters, secret redaction, turn dedupe
   util.ts      paths, jsonl/json readers, sqlite snapshot helper
-  sources/     one file per platform
+  sources/     one file per platform (+ channel.ts: our own store)
+  channel/     event-sourced mailbox: lock, seq sidecar, tail-watch, worker
+               state projection, spawn wrapper
   registry.ts  source registry, detection, scoping
-  commands.ts  the five commands (string-returning, shared by CLI + MCP)
-  mcp.ts       zero-dep stdio MCP server
+  commands.ts  recall commands (string-returning, shared by CLI + MCP)
+  mcp.ts       zero-dep stdio MCP server (recall + channel tools)
   install.ts   skill + MCP wiring into detected agents
   cli.ts       entry
 ```

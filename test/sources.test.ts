@@ -233,6 +233,61 @@ test("antigravity: transcript.jsonl under brain/<conv>", () => {
   assert.match(texts(ss[0]), /system diagram/);
 });
 
+test("channel: event log, seq, inbox cursor, worker projection, Source view", async () => {
+  const { appendEvent, readEvents, createChannel, readCursor, writeCursor } = await import(
+    "../src/channel/store.ts"
+  );
+  const { projectWorkers } = await import("../src/channel/cmd.ts");
+  const { channelSource } = await import("../src/sources/channel.ts");
+
+  const dir = mkdtempSync(join(tmpdir(), "sb-chan-"));
+  const cdir = join(dir, "ops");
+  appendEvent(cdir, { kind: "create", by: "user" });
+  appendEvent(cdir, { kind: "message", by: "user", to: "w1", body: "fix the queue" });
+  const dup = appendEvent(cdir, {
+    kind: "message",
+    by: "user",
+    body: "same",
+    idempotencyKey: "k1",
+  });
+  const dup2 = appendEvent(cdir, {
+    kind: "message",
+    by: "user",
+    body: "same",
+    idempotencyKey: "k1",
+  });
+  assert.equal(dup.seq, dup2.seq); // idempotency dedup
+  appendEvent(cdir, { kind: "spawned", by: "user", worker: "w1", agent: "claude" });
+  appendEvent(cdir, { kind: "done", by: "w1", worker: "w1", body: "shipped it" });
+
+  const events = readEvents(cdir);
+  assert.deepEqual(events.map((e) => e.seq), [1, 2, 3, 4, 5]);
+
+  // worker projection: w1 went spawned → done
+  const ws = projectWorkers(events);
+  assert.equal(ws.get("w1")?.lifecycle, "done");
+
+  // inbox cursor: w1 sees its addressed message; marking advances cursor
+  const mine = events.filter((e) => e.kind === "message" && e.seq > readCursor(cdir, "w1") && e.to === "w1");
+  assert.equal(mine.length, 1);
+  writeCursor(cdir, "w1", 2);
+  assert.equal(
+    events.filter((e) => e.kind === "message" && e.seq > readCursor(cdir, "w1") && e.to === "w1").length,
+    0,
+  );
+
+  // source view: channel dir becomes a searchable Session
+  mkdirSync(join(dir, "ops"), { recursive: true });
+  // channelSource lists <root>/<bucket>/<name> — point root at dir's parent shape
+  const root = join(dir, "channels");
+  mkdirSync(join(root, "bkt", "ops"), { recursive: true });
+  writeFileSync(join(root, "bkt", "ops", "events.jsonl"), events.map((e) => JSON.stringify(e)).join("\n") + "\n");
+  const ss = channelSource.sessions(root);
+  assert.equal(ss.length, 1);
+  assert.equal(ss[0].id, "bkt/ops");
+  assert.match(texts(ss[0]), /fix the queue/);
+});
+
 test("secrets are redacted everywhere", () => {
   const dir = mkdtempSync(join(tmpdir(), "sb-claude-"));
   mkdirSync(join(dir, "proj"), { recursive: true });

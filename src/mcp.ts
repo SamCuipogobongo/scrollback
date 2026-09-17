@@ -2,8 +2,14 @@
 // Exposes the same commands as tools so any MCP-capable agent can recall.
 
 import { cmdContext, cmdExtract, cmdList, cmdProjects, cmdSearch } from "./commands.ts";
+import {
+  cmdChannelList,
+  cmdChannelSend,
+  cmdChannelWait,
+  cmdInbox,
+} from "./channel/cmd.ts";
 
-const VERSION = "0.2.0";
+const VERSION = "0.3.0";
 const PROTOCOL = "2025-06-18";
 
 const TOOLS = [
@@ -82,9 +88,62 @@ const TOOLS = [
       },
     },
   },
+  {
+    name: "scrollback_channel_send",
+    description:
+      "Post a message to a scrollback channel — the durable cross-agent mailbox. Any agent can send; workers and humans read via scrollback_channel_inbox.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        channel: { type: "string" },
+        body: { type: "string" },
+        to: { type: "string", description: "address to one worker; omit = broadcast" },
+        by: { type: "string", description: "sender name (default: user)" },
+        thread: { type: "string" },
+        global: { type: "boolean", description: "global channel (default: project-scoped)" },
+      },
+      required: ["channel", "body"],
+    },
+  },
+  {
+    name: "scrollback_channel_inbox",
+    description:
+      "Read unread messages addressed to a worker (or broadcast if `all`). Pass `mark` to advance the read cursor.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        worker: { type: "string" },
+        channel: { type: "string", description: "limit to one channel; omit = all" },
+        all: { type: "boolean", description: "include broadcast messages" },
+        mark: { type: "boolean", description: "mark returned messages as read" },
+        global: { type: "boolean" },
+      },
+      required: ["worker"],
+    },
+  },
+  {
+    name: "scrollback_channel_wait",
+    description:
+      "Long-poll a channel for the next matching event (default kinds: done/error/killed/message). Returns the first hit or 'timeout'.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        channel: { type: "string" },
+        kinds: { type: "string", description: "comma-separated event kinds" },
+        timeout: { type: "number", description: "seconds (default 600)" },
+        global: { type: "boolean" },
+      },
+      required: ["channel"],
+    },
+  },
+  {
+    name: "scrollback_channel_list",
+    description: "List all channels with event/worker counts — the fleet overview.",
+    inputSchema: { type: "object", properties: {} },
+  },
 ];
 
-function callTool(name: string, args: Record<string, any>): string {
+async function callTool(name: string, args: Record<string, any>): Promise<string> {
   const f: Record<string, string | boolean> = {};
   for (const [k, v] of Object.entries(args || {})) f[k] = v;
   if (f.global === undefined) f.global = true; // MCP default: search everywhere
@@ -99,6 +158,14 @@ function callTool(name: string, args: Record<string, any>): string {
       return cmdProjects(f);
     case "scrollback_list":
       return cmdList(f);
+    case "scrollback_channel_send":
+      return cmdChannelSend(String(args.channel ?? ""), String(args.body ?? ""), f);
+    case "scrollback_channel_inbox":
+      return cmdInbox(String(args.worker ?? ""), f);
+    case "scrollback_channel_wait":
+      return cmdChannelWait(String(args.channel ?? ""), f);
+    case "scrollback_channel_list":
+      return cmdChannelList(f);
     default:
       throw new Error(`unknown tool: ${name}`);
   }
@@ -116,7 +183,7 @@ function replyError(id: any, code: number, message: string) {
   send({ jsonrpc: "2.0", id, error: { code, message } });
 }
 
-function handle(msg: any) {
+async function handle(msg: any) {
   if (!msg || typeof msg !== "object") return;
   const { id, method, params } = msg;
   if (id === undefined || id === null) return; // notification — nothing to answer
@@ -136,7 +203,7 @@ function handle(msg: any) {
         reply(id, { tools: TOOLS });
         return;
       case "tools/call": {
-        const text = callTool(params?.name, params?.arguments || {});
+        const text = await callTool(params?.name, params?.arguments || {});
         reply(id, { content: [{ type: "text", text }] });
         return;
       }
@@ -165,7 +232,7 @@ export function serveMcp() {
       buf = buf.slice(idx + 1);
       if (!line) continue;
       try {
-        handle(JSON.parse(line));
+        void handle(JSON.parse(line));
       } catch {
         // malformed line — keep serving
       }

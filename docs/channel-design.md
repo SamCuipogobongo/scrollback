@@ -143,9 +143,21 @@ also feeds recall. Worker lifecycle (4–5) is where "admin" becomes real.
 
 ## Competitor note
 
-`mcp_agent_mail` (1.7k★, Git+SQLite, identities+file reservations+TUI)
+Full landscape + marketing teardown lives in `docs/competitive.md`
+("第二批调研" section). Short version:
+
+`mcp_agent_mail` (HTTP FastMCP, Git+SQLite, auto-assigned identities,
+file reservations, Overseer steering, Beads integration, iOS companion)
 proves demand for agent mailboxes. Our wedge vs them: channels *are*
 searchable sessions (recall merge), zero-dep single binary, and the
 fleet view — they're a mailbox, we're the admin plane. Advisory file
 reservations (their killer feature) are worth stealing in v2: a `lock`
-event kind + `scrollback reserve <glob>` is cheap to add.
+event kind + `scrollback reserve <glob>` is cheap to add; auto-assigned
+worker names (their "GreenCastle" gimmick) cost nothing and are worth
+copying at `spawn`.
+
+Gas Town validates the heavyweight end of worker
+registry+supervisor+interrupt but couples it to tmux/Beads/role lore —
+we stay the single-machine substrate. A2A is a different layer
+(cross-vendor RPC); say so explicitly in the README to pre-empt the
+"isn't this just A2A" question.

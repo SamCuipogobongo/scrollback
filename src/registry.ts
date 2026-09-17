@@ -18,6 +18,7 @@ import { vscodeFamily } from "./sources/vscode-family.ts";
 import { aider } from "./sources/aider.ts";
 import { goose } from "./sources/goose.ts";
 import { antigravity } from "./sources/antigravity.ts";
+import { channelSource } from "./sources/channel.ts";
 
 export const SOURCES: Source[] = [
   claude,
@@ -36,6 +37,7 @@ export const SOURCES: Source[] = [
   aider,
   goose,
   antigravity,
+  channelSource,
 ];
 
 export interface DetectedSource {
