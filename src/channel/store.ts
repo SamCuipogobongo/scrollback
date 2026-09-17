@@ -11,8 +11,8 @@ import {
   mkdirSync,
   openSync,
   readFileSync,
+  readSync,
   readdirSync,
-  rmSync,
   statSync,
   unlinkSync,
   writeFileSync,
@@ -69,18 +69,21 @@ const lockPath = (dir: string) => join(dir, ".lock");
 const cursorDir = (dir: string) => join(dir, ".cursors");
 
 const NAME_RE = /^[A-Za-z0-9._-]+$/;
+const DOTS_RE = /^\.+$/; // "."/".." would escape the bucket via path join
 export function validName(name: string): boolean {
-  return NAME_RE.test(name);
+  return NAME_RE.test(name) && !DOTS_RE.test(name);
 }
 
 // ---- advisory lock: O_EXCL lockfile holding owner pid; steal if dead ----
 
-function pidAlive(pid: number): boolean {
+/** undefined pid → "don't know" → treat as alive; EPERM → alive but not ours. */
+export function pidAlive(pid?: number): boolean {
+  if (!pid) return true;
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
-    return false;
+  } catch (e: any) {
+    return e?.code !== "ESRCH"; // ESRCH = gone; EPERM = alive, someone else's
   }
 }
 
@@ -120,19 +123,43 @@ function releaseLock(lock: string): void {
   } catch {}
 }
 
+function withLock<T>(dir: string, fn: () => T): T {
+  const lock = lockPath(dir);
+  acquireLock(lock);
+  try {
+    return fn();
+  } finally {
+    releaseLock(lock);
+  }
+}
+
 // ---- seq sidecar: fast last-seq, reconcile against jsonl tail ----
 
-function lastSeq(dir: string): number {
+export function lastSeq(dir: string): number {
   const f = eventsPath(dir);
-  if (!existsSync(f)) return 0;
+  let size = 0;
+  try {
+    size = statSync(f).size;
+  } catch {
+    return 0;
+  }
+  if (!size) return 0;
   let side = 0;
   try {
     side = Number(readFileSync(seqPath(dir), "utf8").trim()) || 0;
   } catch {}
-  // trust sidecar but verify the file isn't shorter than it claims
-  const tail = readFileSync(f, "utf8");
-  const lines = tail.trimEnd().split("\n").filter(Boolean);
-  const lastLine = lines.length ? lines[lines.length - 1] : null;
+  // trust the sidecar, but verify against the last line — read only the tail
+  const fd = openSync(f, "r");
+  let lastLine = "";
+  try {
+    const len = Math.min(size, 8192);
+    const buf = Buffer.alloc(len);
+    readSync(fd, buf, 0, len, size - len);
+    const lines = buf.toString("utf8").trimEnd().split("\n").filter(Boolean);
+    lastLine = lines.length ? lines[lines.length - 1] : "";
+  } finally {
+    closeSync(fd);
+  }
   let last = 0;
   if (lastLine) {
     try {
@@ -150,20 +177,23 @@ export function createChannel(
 ): { dir: string; created: boolean } {
   if (!validName(name)) throw new Error(`bad channel name: ${name}`);
   const dir = channelDir(name, opts.global);
-  const created = !existsSync(eventsPath(dir));
   mkdirSync(dir, { recursive: true });
-  if (created) {
-    const meta: ChannelMeta = {
-      name,
-      type: opts.type || "chat",
-      cwd: process.cwd(),
-      created: new Date().toISOString(),
-      description: opts.description,
-    };
-    writeFileSync(metaPath(dir), JSON.stringify(meta, null, 2) + "\n");
-    appendEvent(dir, { kind: "create", by: opts.by || "user", body: opts.description });
-  }
-  return { dir, created };
+  // whole check+meta+create-event under one lock: no double-create races
+  return withLock(dir, () => {
+    const created = !existsSync(eventsPath(dir));
+    if (created) {
+      const meta: ChannelMeta = {
+        name,
+        type: opts.type || "chat",
+        cwd: process.cwd(),
+        created: new Date().toISOString(),
+        description: opts.description,
+      };
+      writeFileSync(metaPath(dir), JSON.stringify(meta, null, 2) + "\n");
+      appendEventLocked(dir, { kind: "create", by: opts.by || "user", body: opts.description });
+    }
+    return { dir, created };
+  });
 }
 
 export type EventDraft = { kind: string; by: string; ts?: string } & Record<
@@ -171,26 +201,24 @@ export type EventDraft = { kind: string; by: string; ts?: string } & Record<
   unknown
 >;
 
+function appendEventLocked(dir: string, partial: EventDraft): ChannelEvent {
+  if (partial.idempotencyKey) {
+    const dup = readEvents(dir).find((e) => e.idempotencyKey === partial.idempotencyKey);
+    if (dup) return dup;
+  }
+  const ev = {
+    ...partial,
+    seq: lastSeq(dir) + 1,
+    ts: partial.ts || new Date().toISOString(),
+  } as ChannelEvent;
+  appendFileSync(eventsPath(dir), JSON.stringify(ev) + "\n");
+  writeFileSync(seqPath(dir), String(ev.seq));
+  return ev;
+}
+
 export function appendEvent(dir: string, partial: EventDraft): ChannelEvent {
   mkdirSync(dir, { recursive: true });
-  const lock = lockPath(dir);
-  acquireLock(lock);
-  try {
-    if (partial.idempotencyKey) {
-      const dup = readEvents(dir).find((e) => e.idempotencyKey === partial.idempotencyKey);
-      if (dup) return dup;
-    }
-    const ev = {
-      ...partial,
-      seq: lastSeq(dir) + 1,
-      ts: partial.ts || new Date().toISOString(),
-    } as ChannelEvent;
-    appendFileSync(eventsPath(dir), JSON.stringify(ev) + "\n");
-    writeFileSync(seqPath(dir), String(ev.seq));
-    return ev;
-  } finally {
-    releaseLock(lock);
-  }
+  return withLock(dir, () => appendEventLocked(dir, partial));
 }
 
 export function readEvents(dir: string): ChannelEvent[] {

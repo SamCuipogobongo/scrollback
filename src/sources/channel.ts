@@ -3,6 +3,7 @@
 // Root: ~/.scrollback/channels (or SCROLLBACK_CHANNEL_ROOT).
 
 import { existsSync } from "node:fs";
+import { redactSecrets } from "../clean.ts";
 import type { Session, Source, Turn } from "../types.ts";
 import {
   GLOBAL_BUCKET,
@@ -41,7 +42,7 @@ export const channelSource: Source = {
         const to = ev.to ? ` (→ ${ev.to})` : "";
         turns.push({
           role: ev.by === "user" ? "user" : "assistant",
-          text: `${sender}${ev.body}${to}`,
+          text: redactSecrets(`${sender}${ev.body}${to}`),
         });
       }
       if (!turns.length) continue;

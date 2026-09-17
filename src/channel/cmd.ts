@@ -1,16 +1,18 @@
 // Channel commands: create/list/send/read/watch/wait + inbox + workers + spawn.
 // String-returning so CLI and MCP share the path; watch/wait are async.
 
-import { existsSync, statSync } from "node:fs";
-import { spawnSync } from "node:child_process";
-import type { Session, Turn } from "../types.ts";
+import { existsSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { redactSecrets } from "../clean.ts";
 import {
   GLOBAL_BUCKET,
   appendEvent,
   channelDir,
   channelRoot,
   createChannel,
+  lastSeq,
   listChannels,
+  pidAlive,
   readCursor,
   readEvents,
   readMeta,
@@ -25,6 +27,7 @@ const fmtTs = (ts: string) => ts.replace("T", " ").slice(5, 16);
 
 /** Find a channel dir by name: requested scope first, then any bucket. */
 function resolveChannel(name: string, global: boolean): string {
+  if (!validName(name)) throw new Error(`bad channel name: ${name}`);
   const dir = channelDir(name, global);
   if (existsSync(dir)) return dir;
   const hit = listChannels().find((c) => c.name === name);
@@ -81,7 +84,7 @@ export function cmdChannelRead(name: string, f: Flags): string {
 function formatEvent(ev: { seq: number; ts: string; kind: string; by: string; to?: string; body?: string; worker?: string; [k: string]: unknown }): string {
   const to = ev.to ? ` → ${ev.to}` : "";
   const worker = ev.worker ? ` [${ev.worker}]` : "";
-  const body = ev.body ? `\n    ${ev.body}` : "";
+  const body = ev.body ? `\n    ${redactSecrets(String(ev.body))}` : "";
   return `${fmtTs(ev.ts)} #${ev.seq} ${ev.kind}  ${ev.by}${to}${worker}${body}`;
 }
 
@@ -104,7 +107,9 @@ export async function cmdChannelWait(name: string, f: Flags): Promise<string> {
     : new Set(["done", "error", "killed", "message"]);
   const dir = resolveChannel(name, !!f.global);
   const timeout = (f.timeout ? Number(f.timeout) : 600) * 1000;
-  for await (const ev of watchEvents(dir, { kinds, timeoutMs: timeout })) {
+  // wait = future events only; pass --from explicitly to replay history
+  const from = f.from !== undefined ? Number(f.from) : lastSeq(dir);
+  for await (const ev of watchEvents(dir, { from, kinds, timeoutMs: timeout })) {
     return formatEvent(ev);
   }
   return `timeout after ${timeout / 1000}s`;
@@ -112,13 +117,8 @@ export async function cmdChannelWait(name: string, f: Flags): Promise<string> {
 
 export function cmdChannelList(f: Flags): string {
   const all = listChannels();
-  const scopeAll = !!f.global || !!f.all;
   const bucketFilter = f.bucket as string;
-  const rows = all.filter((c) => {
-    if (bucketFilter) return c.bucket === bucketFilter;
-    if (scopeAll) return true;
-    return true; // list shows everything — it's the admin view
-  });
+  const rows = bucketFilter ? all.filter((c) => c.bucket === bucketFilter) : all;
   const lines = ["channel  (bucket)\n"];
   for (const c of rows.sort((a, b) => a.bucket.localeCompare(b.bucket) || a.name.localeCompare(b.name))) {
     const meta = readMeta(c.dir);
@@ -234,16 +234,6 @@ export function projectWorkers(events: ReturnType<typeof readEvents>): Map<strin
 const TERMINAL = new Set(["done", "error", "killed"]);
 const isTerminal = (l: string) => TERMINAL.has(l);
 
-function pidAlive(pid?: number): boolean {
-  if (!pid) return true; // unknown → don't claim crashed
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export function cmdWorkers(f: Flags): string {
   const lines = ["worker            agent    channel              state     activity  last event", ""];
   let n = 0;
@@ -273,13 +263,15 @@ const AGENT_CMDS: Record<string, (task: string) => { cmd: string; args: string[]
   codex: (task) => ({ cmd: "codex", args: ["exec", task] }),
 };
 
-export function cmdSpawn(agent: string, task: string, f: Flags): string {
+export async function cmdSpawn(agent: string, task: string, f: Flags): Promise<string> {
   const worker = `${agent}-${Math.random().toString(36).slice(2, 6)}`;
   const channel = (f.channel as string) || `w-${worker}`;
   const global = !!f.global;
 
+  const spec = AGENT_CMDS[agent] || (f.cmd ? () => ({ cmd: String(f.cmd), args: [task] }) : null);
+  if (!spec) return `unknown agent "${agent}" (known: ${Object.keys(AGENT_CMDS).join(", ")}) — or pass --cmd`;
+
   const { dir } = createChannel(channel, { global, by: "user" });
-  appendEvent(dir, { kind: "spawned", by: "user", worker, agent, body: task });
 
   const preamble = [
     `You are worker "${worker}" on scrollback channel "${channel}".`,
@@ -291,20 +283,24 @@ export function cmdSpawn(agent: string, task: string, f: Flags): string {
     `Task: ${task}`,
   ].join("\n");
 
-  const spec = AGENT_CMDS[agent] || (f.cmd ? () => ({ cmd: String(f.cmd), args: [task] }) : null);
-  if (!spec) return `unknown agent "${agent}" (known: ${Object.keys(AGENT_CMDS).join(", ")}) — or pass --cmd`;
-
   const { cmd, args } = spec(preamble);
+  // async spawn so the child pid lands in the log while the worker is still
+  // running — that's what lets `workers` tell crashed from still-working
+  const child = spawn(cmd, args, { stdio: "inherit" });
+  appendEvent(dir, { kind: "spawned", by: "user", worker, agent, pid: child.pid, body: task });
   appendEvent(dir, { kind: "turn_started", by: "supervisor", worker });
-  const r = spawnSync(cmd, args, { stdio: "inherit" });
-  const ok = r.status === 0;
+  const status = await new Promise<number | null>((res) => {
+    child.on("close", (code) => res(code));
+    child.on("error", () => res(null));
+  });
+  const ok = status === 0;
   appendEvent(dir, {
     kind: ok ? "done" : "error",
     by: "supervisor",
     worker,
-    pid: r.pid,
-    body: `exit ${r.status ?? "?"}`,
+    pid: child.pid,
+    body: `exit ${status ?? "?"}`,
   });
   appendEvent(dir, { kind: "turn_finished", by: "supervisor", worker });
-  return `${ok ? "done" : "error"}: worker ${worker} on channel ${channel} (exit ${r.status})`;
+  return `${ok ? "done" : "error"}: worker ${worker} on channel ${channel} (exit ${status})`;
 }

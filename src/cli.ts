@@ -180,7 +180,7 @@ export async function main() {
       break;
     case "spawn":
       if (!_[1] || !_[2]) return usage('spawn <claude|codex> "<task>"');
-      out = cmdSpawn(_[1], _[2], flags);
+      out = await cmdSpawn(_[1], _[2], flags);
       break;
     default:
       console.error(`unknown command: ${cmd}\n`);

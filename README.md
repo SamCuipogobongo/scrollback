@@ -2,21 +2,49 @@
 
 **The open-source admin plane for every coding agent.**
 
-[![npm](https://img.shields.io/npm/v/sam-scrollback)](https://www.npmjs.com/package/sam-scrollback)
+[![npm](https://img.shields.io/npm/v/sam-scrollback?style=flat-square)](https://www.npmjs.com/package/sam-scrollback)
+[![license](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
+[![agents](https://img.shields.io/badge/agents-22-green?style=flat-square)](#why-scrollback)
+[![node](https://img.shields.io/badge/node-%3E%3D22.13-lightgrey?style=flat-square)](https://nodejs.org)
 
-- **history** — reads what every agent already wrote: Claude Code, Codex,
-  Devin, OpenCode, Qwen Code, Gemini CLI, Kimi Code, Factory Droid, Continue,
-  Copilot CLI, Cursor, Zed, Copilot Chat, Cline/Roo/Kilo, Trae, Qoder,
-  CodeBuddy, Aider, Goose, Antigravity — one search box across all of them
-- **fleet** — `scrollback workers`: every worker on one screen, live state
-  projected from channel events
-- **comms** — `scrollback channel`: durable mailboxes under
-  `~/.scrollback/channels` that agents reach each other through — and that
-  show up as searchable sessions themselves
+One search box across every agent you run — Claude Code, Codex, Devin,
+OpenCode, Qwen Code, Gemini CLI, Kimi Code, Factory Droid, Continue,
+Copilot CLI, Cursor, Zed, Copilot Chat, Cline/Roo/Kilo, Trae, Qoder,
+CodeBuddy, Aider, Goose, Antigravity.
 
 Local-first: nothing is uploaded, no daemon, no index — a query scans the
-stores in place. Secrets are redacted at read time (API keys, tokens, private
-keys never leave the store).
+stores in place. Secrets are redacted at read time.
+
+```text
+$ scrollback doctor
+  [claude     ] 132 session(s)  ~/.claude/projects
+  [codex      ]  47 session(s)  ~/.codex/sessions
+  [devin      ]  39 session(s)  ~/.local/share/devin/cli
+  [opencode   ]   1 session(s)  ~/.local/share/opencode/storage
+  …
+  219 session(s) across 5 detected source(s)
+
+$ scrollback search "jwt refresh" --global
+[claude ] 2026-09-10  sess-aaa  ~/myapp   hits=4   "…flaky jwt refresh…"
+[codex  ] 2026-09-10  deadbeef  ~/myapp   hits=2   "…migrate the user table…"
+
+$ scrollback context sess-aaa --grep jwt --turns 2
+# context: [claude] sess-aaa  ·  ~/myapp
+## turn 3 (assistant) — …the refresh token race is in auth.ts:41…
+```
+
+## Why scrollback
+
+| | scrollback | deja-vu | claude-mem | agent mail |
+|---|---|---|---|---|
+| Reads existing sessions | ✓ | ✓ | ✗ (captures forward only) | ✗ |
+| Index / daemon required | ✗ (scans in place) | index | index + LLM per call | — |
+| Devin · Trae · Qoder · CodeBuddy | ✓ | ✗ | ✗ | ✗ |
+| Wires itself into every agent | ✓ `install` | partial | manual | manual |
+| Agent↔agent comms | [roadmap](docs/channel-design.md) | ✗ | ✗ | ✓ |
+
+Different lane, same store: recall of what agents already wrote, plus a
+durable channel for what they say next.
 
 ## Install
 
@@ -36,13 +64,6 @@ For agents that speak MCP directly:
 { "mcpServers": { "scrollback": { "command": "scrollback", "args": ["--mcp"] } } }
 ```
 
-## Dev
-
-```bash
-node scrollback.ts <command>   # Node 23.6+ type-stripping, or bun
-npm run build                  # tsc → dist/
-```
-
 ## Commands
 
 ```bash
@@ -53,14 +74,6 @@ scrollback search "<keywords>" [--global] [--platform p]
 scrollback context <id> [--grep kw] [--turns N] [--around N] [--from N --to N]
 scrollback extract <id> [--grep kw] [--json]
 scrollback --mcp                               # MCP server over stdio
-
-scrollback channel create <name> [--global]    # durable mailbox
-scrollback channel send <name> "<body>" [--to w] [--by b] [--kind k]
-scrollback channel read <name> [--from seq] [--kinds a,b]
-scrollback channel watch <name> / wait <name> --kinds done --timeout 600
-scrollback inbox <worker> [--all] [--mark]     # unread messages @worker
-scrollback workers                             # fleet view
-scrollback spawn claude "<task>" [--channel c] # run an agent as a worker
 ```
 
 Recall is a two-step drill-down:
@@ -70,58 +83,28 @@ scrollback search "landing page" --global --since 2026-08-01
 scrollback context 94aa7e8b --grep "landing" --turns 3
 ```
 
-Session ids accept any unique prefix.
+Session ids accept any unique prefix. Every storage root can be overridden
+with `SCROLLBACK_<PLATFORM>_ROOT` (`:`-separated for multiple).
 
-## Where data comes from
+## Roadmap
 
-| Platform | Storage |
-|---|---|
-| Claude Code | `~/.claude/projects/<sanitized-cwd>/*.jsonl` (+ Xcode / cc-mirror roots) |
-| Codex | `~/.codex/sessions/**/rollout-*.jsonl` (+ Xcode root) |
-| Devin | `~/.local/share/devin/cli/sessions.db` (read on tmp snapshot) |
-| OpenCode | `~/.local/share/opencode/storage/{session,message,part}/` |
-| Qwen Code | `~/.qwen/{tmp,projects}/*/chats/session-*.{json,jsonl}` |
-| Gemini CLI | `~/.gemini/tmp/<proj>/chats/session-*.{json,jsonl}` |
-| Kimi Code | `~/.kimi-code/sessions/*/*/agents/*/wire.jsonl` (+ `~/.kimi` legacy) |
-| Factory Droid | `~/.factory/sessions/<dashed-cwd>/*.jsonl` |
-| Continue | `~/.continue/sessions/*.json` |
-| Copilot CLI | `~/.copilot/session-state/*/events.jsonl` |
-| Cursor | `Cursor/User/globalStorage/state.vscdb` (IDE) + `~/.cursor/projects/**/agent-transcripts/*.jsonl` (CLI) |
-| Zed | `Zed/threads/threads.db` (zstd-compressed blobs, decoded in-process) |
-| VS Code family | `*/User/globalStorage/<ext>/tasks/*` (Cline/Roo/Kilo), `chatSessions/*` (Copilot Chat), `*/conversations/*` (Trae/Qoder/CodeBuddy — best effort) |
-| Aider | `**/.aider.chat.history.md` |
-| Goose | `~/.local/share/goose/sessions/*.{jsonl,db}` |
-| Antigravity | `~/.gemini/antigravity*/brain/*/…/transcript.jsonl` |
+- **fleet** — every agent on one screen
+- **comms** — a durable channel agents reach each other through
 
-Every root can be overridden with `SCROLLBACK_<PLATFORM>_ROOT`
-(`:`-separated for multiple). New adapters are one file in `src/sources/`
-implementing `detect`-able `roots()` + `sessions(root)`.
+Design and competitive notes: [docs/channel-design.md](docs/channel-design.md) ·
+[docs/competitive.md](docs/competitive.md)
 
-## What's stripped
+## Contributing
 
-Only real human↔AI dialogue is kept. The cleaner drops:
+New platform support is one adapter file in `src/sources/` implementing
+`roots()` + `sessions(root)`, plus a fixture under `fixtures/` and a
+conformance test in `test/sources.test.ts`.
 
-- system/prompt injections (`<system_info>`, `<rules>`, `<task-notification>`, …)
-- tool calls and tool results (only `text` blocks survive)
-- bootstrap turns (Codex env envelope + `AGENTS.md` preamble; Devin continuation prompts)
-- summarizer payloads (`Output a summary…`, `Conversation to summarize…`)
-- compacted-session history (Claude `isCompactSummary`, Codex `compacted` events)
-- duplicate re-stored messages (Devin stores one logical message per attempt)
-- subagent recordings and non-resumable shells (Gemini-family rules)
-
-## Layout
-
+```bash
+node scrollback.ts <command>   # dev entry, Node 23.6+ type-stripping
+npm run build && npm test      # tsc → dist/, 17 conformance tests
 ```
-src/
-  types.ts     Session/Turn/Source model
-  clean.ts     noise + injection filters, secret redaction, turn dedupe
-  util.ts      paths, jsonl/json readers, sqlite snapshot helper
-  sources/     one file per platform (+ channel.ts: our own store)
-  channel/     event-sourced mailbox: lock, seq sidecar, tail-watch, worker
-               state projection, spawn wrapper
-  registry.ts  source registry, detection, scoping
-  commands.ts  recall commands (string-returning, shared by CLI + MCP)
-  mcp.ts       zero-dep stdio MCP server (recall + channel tools)
-  install.ts   skill + MCP wiring into detected agents
-  cli.ts       entry
-```
+
+## License
+
+[MIT](LICENSE)
