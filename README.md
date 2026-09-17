@@ -27,7 +27,7 @@ stores in place. Secrets are redacted at read time.
 | Index / daemon required | ✗ (scans in place) | index | index + LLM per call | — |
 | Devin · Trae · Qoder · CodeBuddy | ✓ | ✗ | ✗ | ✗ |
 | Wires itself into every agent | ✓ `install` | partial | manual | manual |
-| Agent↔agent comms | [roadmap](docs/channel-design.md) | ✗ | ✗ | ✓ |
+| Agent↔agent comms | ✓ `channel` | ✗ | ✗ | ✓ |
 
 Different lane, same store: recall of what agents already wrote, plus a
 durable channel for what they say next.
