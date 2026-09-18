@@ -51,9 +51,13 @@ function parseRecord(rec: any, fallbackId: string, cwd: string, platform: string
 
 function parseJsonl(path: string, cwd: string, platform: string): Session | null {
   let meta: any = null;
+  let firstTs = 0;
   const turns: Turn[] = [];
   const fallbackId = basename(path).replace(/^session-?|\.jsonl?$/g, "") || basename(path);
   for (const ev of readJsonl(path)) {
+    // real qwen records carry ISO timestamp on every event — first one is a
+    // fine startedAt when no meta record exists (verified on ~/.qwen)
+    if (!firstTs && ev?.timestamp) firstTs = Date.parse(ev.timestamp) || 0;
     if (ev && Array.isArray(ev.messages)) {
       const s = parseRecord(ev, fallbackId, cwd, platform);
       if (s) return s;
@@ -64,6 +68,11 @@ function parseJsonl(path: string, cwd: string, platform: string): Session | null
       continue;
     }
     if (meta?.kind === "subagent" || meta?.hasResumableContent === false) return null;
+    // qwen writes type:"system" provenance noise (attribution/file snapshots,
+    // ui_telemetry) — extractTurn already returns null for those; also skip
+    // any non-real provenance on user/assistant records defensively
+    if (ev?.provenance && !/^(real_user|assistant_output)$/.test(ev.provenance))
+      continue;
     const t = extractTurn(ev);
     if (!t) continue;
     if (t.role === "user" && isUserNoise(t.text)) continue;
@@ -74,7 +83,8 @@ function parseJsonl(path: string, cwd: string, platform: string): Session | null
     platform,
     id: meta?.sessionId || fallbackId,
     cwd,
-    startedAt: Date.parse(meta?.startTime ?? meta?.lastUpdated ?? "") || 0,
+    startedAt:
+      Date.parse(meta?.startTime ?? meta?.lastUpdated ?? "") || firstTs || 0,
     turns,
   };
 }

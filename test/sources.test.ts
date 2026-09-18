@@ -121,11 +121,26 @@ test("opencode: session/message/part three-dir layout", () => {
 
 test("qwen: ConversationRecord json + projects.json cwd mapping", () => {
   const ss = qwen.sessions(join(FX, "qwen"));
-  assert.equal(ss.length, 1);
-  assert.equal(ss[0].id, "qwen-sess-1");
-  assert.equal(ss[0].cwd, "/Users/test/myapp");
-  assert.equal(ss[0].turns.length, 2); // tool msg skipped
-  assert.match(texts(ss[0]), /timeout_ms/);
+  const legacy = ss.find((s) => s.id === "qwen-sess-1");
+  assert.ok(legacy);
+  assert.equal(legacy.cwd, "/Users/test/myapp");
+  assert.equal(legacy.turns.length, 2); // tool msg skipped
+  assert.match(texts(legacy), /timeout_ms/);
+});
+
+test("qwen: real projects/<cwd>/chats jsonl — provenance filter", () => {
+  const ss = qwen.sessions(join(FX, "qwen"));
+  const s = ss.find((x) => x.id === "9ed3f208-3bda-4aa6-90a0-e95b837f96e5");
+  assert.ok(s);
+  assert.equal(s.cwd, "/Users/test/myapp");
+  // system provenance events skipped; model-role mapped to assistant;
+  // startedAt falls back to first event timestamp (no meta record)
+  assert.equal(s.turns.length, 2);
+  assert.equal(s.startedAt, Date.parse("2026-09-18T11:54:26.272Z"));
+  const tx = texts(s);
+  assert.match(tx, /timeout_ms/);
+  assert.match(tx, /Renamed in config\.ts/);
+  assert.doesNotMatch(tx, /attribution|telemetry/);
 });
 
 test("factory: dashed-cwd dir + meta first line", () => {
