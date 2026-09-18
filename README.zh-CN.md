@@ -14,8 +14,7 @@ Devin、OpenCode、Qwen Code、Gemini CLI、Kimi Code、Factory Droid、Continue
 Copilot CLI、Cursor、Zed、Copilot Chat、Cline/Roo/Kilo、Trae、Qoder、
 CodeBuddy、Aider、Goose、Antigravity。
 
-本地优先:什么都不上传,没有守护进程,也不建索引——查询时直接扫原始
-存储;密钥在读取时自动脱敏。
+本地优先:查询时直接扫原始存储;密钥自动脱敏。
 
 <p align="center">
   <img src="assets/demo.gif" alt="scrollback 演示" width="720">
@@ -25,14 +24,11 @@ CodeBuddy、Aider、Goose、Antigravity。
 
 | | scrollback | deja-vu | claude-mem | agent mail |
 |---|---|---|---|---|
-| 能读已有会话 | ✓ | ✓ | ✗(只能记录之后的) | ✗ |
+| 能读已有会话 | ✓ | ✓ | ✗ | ✗ |
 | 要索引/守护进程 | ✗(原地扫) | 要索引 | 索引 + 每次查询过 LLM | — |
 | Devin · Trae · Qoder · CodeBuddy | ✓ | ✗ | ✗ | ✗ |
 | 自动接入所有 agent | ✓ `install` | 部分支持 | 手动 | 手动 |
 | Agent 互相通信 | ✓ `channel` | ✗ | ✗ | ✓ |
-
-赛道不同,东西存在一处:agent 写过什么可以召回,
-接下来要说什么走频道。
 
 ## 安装
 
@@ -43,7 +39,7 @@ scrollback install         # 自动往检测到的 agent 写 skills + MCP 配置
 
 `scrollback install` 会识别本机装了哪些 agent,往各自的 skills 目录写一份
 `SKILL.md`,配置格式明确的再顺手加一条 `mcpServers.scrollback`
-——装完每个 agent 都自带召回,不用挨个配。`--dry-run` 可以先看看会写哪些文件。
+——装完每个 agent 都自带召回。`--dry-run` 可以先看看会写哪些文件。
 
 本身支持 MCP 的 agent 也可以直接配:
 
@@ -63,15 +59,12 @@ scrollback extract <id> [--grep kw] [--json]
 scrollback --mcp                               # stdio 模式跑 MCP server
 ```
 
-召回分两步,先搜再下钻:
-
 ```bash
 scrollback search "landing page" --global --since 2026-08-01
 scrollback context 94aa7e8b --grep "landing" --turns 3
 ```
 
-会话 id 写前几位就行,唯一即可。每个存储根目录都能用
-`SCROLLBACK_<PLATFORM>_ROOT` 覆盖,多个路径用 `:` 分隔。
+每个存储根目录都能用 `SCROLLBACK_<PLATFORM>_ROOT` 覆盖,多个路径用 `:` 分隔。
 
 频道(channel)就是管理平面本体,数据在 `~/.scrollback/channels`:
 

@@ -9,13 +9,13 @@
 [![agents](https://img.shields.io/badge/agents-22-green?style=flat-square)](#why-scrollback)
 [![node](https://img.shields.io/badge/node-%3E%3D22.13-lightgrey?style=flat-square)](https://nodejs.org)
 
-One search box across every agent you run — Claude Code, Codex, Devin,
-OpenCode, Qwen Code, Gemini CLI, Kimi Code, Factory Droid, Continue,
-Copilot CLI, Cursor, Zed, Copilot Chat, Cline/Roo/Kilo, Trae, Qoder,
-CodeBuddy, Aider, Goose, Antigravity.
+One search box across the conversation history of every agent you run —
+Claude Code, Codex, Devin, OpenCode, Qwen Code, Gemini CLI, Kimi Code,
+Factory Droid, Continue, Copilot CLI, Cursor, Zed, Copilot Chat,
+Cline/Roo/Kilo, Trae, Qoder, CodeBuddy, Aider, Goose, Antigravity.
 
-Local-first: nothing is uploaded, no daemon, no index — a query scans the
-stores in place. Secrets are redacted at read time.
+Local-first: a query scans the stores in place. Secrets are redacted at
+read time.
 
 <p align="center">
   <img src="assets/demo.gif" alt="scrollback demo" width="720">
@@ -25,14 +25,11 @@ stores in place. Secrets are redacted at read time.
 
 | | scrollback | deja-vu | claude-mem | agent mail |
 |---|---|---|---|---|
-| Reads existing sessions | ✓ | ✓ | ✗ (captures forward only) | ✗ |
+| Reads existing sessions | ✓ | ✓ | ✗ | ✗ |
 | Index / daemon required | ✗ (scans in place) | index | index + LLM per call | — |
 | Devin · Trae · Qoder · CodeBuddy | ✓ | ✗ | ✗ | ✗ |
 | Wires itself into every agent | ✓ `install` | partial | manual | manual |
 | Agent↔agent comms | ✓ `channel` | ✗ | ✗ | ✓ |
-
-Different lane, same store: recall of what agents already wrote, plus a
-durable channel for what they say next.
 
 ## Install
 
@@ -43,8 +40,7 @@ scrollback install         # auto-wire skills + MCP into detected agents
 
 `scrollback install` detects which agents you have and writes a `SKILL.md`
 into their skills dir plus an `mcpServers.scrollback` entry where the config
-format is known — so every agent gains recall without you lifting a finger.
-Preview with `--dry-run`.
+format is known — every agent gains recall. Preview with `--dry-run`.
 
 For agents that speak MCP directly:
 
@@ -64,17 +60,15 @@ scrollback extract <id> [--grep kw] [--json]
 scrollback --mcp                               # MCP server over stdio
 ```
 
-Recall is a two-step drill-down:
-
 ```bash
 scrollback search "landing page" --global --since 2026-08-01
 scrollback context 94aa7e8b --grep "landing" --turns 3
 ```
 
-Session ids accept any unique prefix. Every storage root can be overridden
-with `SCROLLBACK_<PLATFORM>_ROOT` (`:`-separated for multiple).
+Every storage root can be overridden with `SCROLLBACK_<PLATFORM>_ROOT`
+(`:`-separated for multiple).
 
-Channels — the admin plane, `~/.scrollback/channels`:
+Channels — the admin plane itself, data in `~/.scrollback/channels`:
 
 ```bash
 scrollback channel create <name> [--global] [--desc d] [--type chat|forum]
