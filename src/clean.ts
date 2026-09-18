@@ -84,7 +84,10 @@ const USER_NOISE = [
 ];
 
 export function isUserNoise(text: string): boolean {
-  return text.length < 4 || USER_NOISE.some((r) => r.test(text));
+  if (USER_NOISE.some((r) => r.test(text))) return true;
+  // short replies are decisions ("ok", "1", "👍") — keep them; only drop
+  // text with no letters/digits/emoji at all (decorative junk: "...", "✻")
+  return !/[\p{L}\p{N}\p{Extended_Pictographic}]/u.test(text);
 }
 
 export function dedupeTurns(turns: Turn[]): Turn[] {
