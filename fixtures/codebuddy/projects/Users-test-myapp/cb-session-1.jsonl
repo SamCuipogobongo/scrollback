@@ -1,0 +1,6 @@
+{"id":"m1","timestamp":1757601600000,"type":"message","role":"user","content":[{"type":"input_text","text":"add retries to the fetch wrapper"}],"sessionId":"cb-session-1","cwd":"/Users/test/myapp"}
+{"id":"s1","timestamp":1757601601000,"type":"summary","summary":"add retries to the fetch wrapper","providerData":{"source":"initial-user-message"}}
+{"id":"r1","parentId":"m1","timestamp":1757601602000,"type":"reasoning","rawContent":[{"type":"reasoning_text","text":"hmm"}],"sessionId":"cb-session-1","cwd":"/Users/test/myapp"}
+{"id":"m2","parentId":"r1","timestamp":1757601603000,"type":"message","role":"assistant","content":[{"type":"output_text","text":"Added exponential backoff capped at 3 retries."}],"sessionId":"cb-session-1","cwd":"/Users/test/myapp"}
+{"id":"t1","timestamp":1757601604000,"type":"turn-metrics","durationMs":3200,"cwd":"/Users/test/myapp"}
+{"id":"at1","timestamp":1757601605000,"type":"ai-title","aiTitle":"Retry wrapper for fetch","sessionId":"cb-session-1","cwd":"/Users/test/myapp"}

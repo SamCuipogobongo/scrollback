@@ -18,6 +18,7 @@ import { vscodeFamily } from "./sources/vscode-family.ts";
 import { aider } from "./sources/aider.ts";
 import { goose } from "./sources/goose.ts";
 import { antigravity } from "./sources/antigravity.ts";
+import { codebuddy } from "./sources/codebuddy.ts";
 import { channelSource } from "./sources/channel.ts";
 
 export const SOURCES: Source[] = [
@@ -37,6 +38,7 @@ export const SOURCES: Source[] = [
   aider,
   goose,
   antigravity,
+  codebuddy,
   channelSource,
 ];
 

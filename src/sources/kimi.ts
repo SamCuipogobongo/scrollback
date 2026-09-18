@@ -47,7 +47,14 @@ function parseWire(path: string, meta: any, id: string, cwd: string): Session | 
   const raw = meta?.createdAt ?? meta?.created_at ?? meta?.created;
   const startedAt =
     typeof raw === "number" ? raw : Date.parse(String(raw ?? "")) || 0;
-  return { platform: "kimi", id, cwd, startedAt, title: meta?.title, turns };
+  return {
+    platform: "kimi",
+    id,
+    cwd,
+    startedAt,
+    title: meta?.title ?? meta?.lastPrompt,
+    turns,
+  };
 }
 
 function scanSessionsDir(sessionsDir: string): Session[] {

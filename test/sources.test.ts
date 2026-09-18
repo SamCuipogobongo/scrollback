@@ -26,6 +26,7 @@ import { vscodeFamily } from "../src/sources/vscode-family.ts";
 import { aider } from "../src/sources/aider.ts";
 import { goose } from "../src/sources/goose.ts";
 import { antigravity } from "../src/sources/antigravity.ts";
+import { codebuddy } from "../src/sources/codebuddy.ts";
 
 const FX = join(dirname(fileURLToPath(import.meta.url)), "../fixtures");
 const req = createRequire(import.meta.url);
@@ -152,6 +153,22 @@ test("kimi: wire.jsonl under agents/main, state.json for meta", () => {
     ss[0].turns.filter((t) => t.role === "assistant").length,
     2,
   );
+});
+
+test("codebuddy: projects jsonl, ai-title preferred over summary", () => {
+  const ss = codebuddy.sessions(join(FX, "codebuddy/projects"));
+  assert.equal(ss.length, 1);
+  const s = ss[0];
+  assert.equal(s.platform, "codebuddy");
+  assert.equal(s.cwd, "/Users/test/myapp");
+  assert.equal(s.title, "Retry wrapper for fetch");
+  assert.equal(s.startedAt, 1757601600000);
+  const tx = texts(s);
+  assert.match(tx, /retries to the fetch wrapper/);
+  assert.match(tx, /exponential backoff/);
+  assert.doesNotMatch(tx, /reasoning_text|hmm/);
+  assert.equal(s.turns.filter((t) => t.role === "user").length, 1);
+  assert.equal(s.turns.filter((t) => t.role === "assistant").length, 1);
 });
 
 test("continue: history array", () => {
