@@ -5,7 +5,10 @@
   "requests": [
     {
       "message": { "text": "copilot: why is my test slow" },
-      "response": { "value": "The beforeEach re-creates the db connection." }
+      "response": [
+        { "value": "The beforeEach re-creates the db connection." },
+        { "kind": "progressTask", "content": { "value": "Inspecting tests" } }
+      ]
     }
   ]
 }

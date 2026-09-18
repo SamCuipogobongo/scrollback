@@ -295,10 +295,19 @@ test("vscode-family: cline tasks + generic agent conv + copilot chatSessions", (
   const root = join(FX, "vscode-fake/User") + "|Trae";
   const ss = vscodeFamily.sessions(root);
   assert.ok(ss.length >= 3, `expected >=3, got ${ss.length}`);
+  const byId = new Map(ss.map((s) => [s.id, s]));
+  // saoudrizwan.claude-dev must tag as cline, not the raw extension id
+  assert.equal(byId.get("cline-task1")?.platform, "trae:cline");
+  assert.equal(byId.get("conv-1")?.platform, "trae:icube.agent");
+  const copilot = byId.get("chat-1");
+  assert.equal(copilot?.platform, "trae:copilot-chat");
   const all = texts({ turns: ss.flatMap((s) => s.turns) });
   assert.match(all, /cline: fix the build/);
   assert.match(all, /trae agent: generate a login form/);
   assert.match(all, /copilot: why is my test slow/);
+  // array-shaped response parts: text captured, progressTask part included
+  assert.match(texts(copilot!), /beforeEach re-creates the db connection/);
+  assert.match(texts(copilot!), /Inspecting tests/);
 });
 
 test("aider: markdown history splits on 'started at'", () => {

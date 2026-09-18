@@ -103,7 +103,13 @@ function acquireLock(lock: string, maxWaitMs = 5000): void {
       let stale = false;
       try {
         const pid = Number(readFileSync(lock, "utf8").trim());
-        if (pid && !pidAlive(pid)) stale = true;
+        if (pid) {
+          if (!pidAlive(pid)) stale = true;
+        } else {
+          // empty lock: fresh writer (µs window) vs crash mid-acquire — only
+          // steal once it's older than any plausible write gap
+          if (Date.now() - statSync(lock).mtimeMs > 1000) stale = true;
+        }
       } catch {
         stale = true; // unreadable lock — treat as stale
       }
@@ -429,6 +435,7 @@ export function listChannels(root = channelRoot()): { dir: string; bucket: strin
 // ---- inbox cursors: .cursors/<worker> holds last-read seq ----
 
 export function readCursor(dir: string, worker: string): number {
+  if (!validName(worker)) return 0; // worker names must not escape .cursors/
   try {
     return Number(readFileSync(join(cursorDir(dir), worker), "utf8").trim()) || 0;
   } catch {
@@ -437,6 +444,7 @@ export function readCursor(dir: string, worker: string): number {
 }
 
 export function writeCursor(dir: string, worker: string, seq: number): void {
+  if (!validName(worker)) return; // worker names must not escape .cursors/
   mkdirSync(cursorDir(dir), { recursive: true });
   writeFileSync(join(cursorDir(dir), worker), String(seq));
 }

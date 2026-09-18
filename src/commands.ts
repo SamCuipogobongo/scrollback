@@ -154,7 +154,10 @@ export function cmdSearch(q: string, f: Flags): string {
 }
 
 export function cmdContext(prefix: string, f: Flags): string {
-  const s = matchSession(loadAll(), prefix);
+  const m = matchSession(loadAll(), prefix);
+  if (m.ambiguous)
+    return `prefix "${prefix}" matches ${m.ambiguous.length} sessions: ${m.ambiguous.join(", ")}`;
+  const s = m.s;
   if (!s) return `no session matching "${prefix}"`;
   const budget = Number(f["max-chars"] || 6000);
   const grep = (f.grep as string)?.toLowerCase();
@@ -179,7 +182,7 @@ export function cmdContext(prefix: string, f: Flags): string {
   } else {
     const from = Math.max(0, Number(f.from || 0));
     const to = Math.min(s.turns.length, Number(f.to || from + nTurns));
-    idxs = Array.from({ length: to - from }, (_, i) => from + i);
+    idxs = Array.from({ length: Math.max(0, to - from) }, (_, i) => from + i);
     lines.push(`# no grep — showing turns ${from}-${to - 1} of ${s.turns.length}`);
   }
   let used = 0;
@@ -199,7 +202,10 @@ export function cmdContext(prefix: string, f: Flags): string {
 }
 
 export function cmdExtract(prefix: string, f: Flags): string {
-  const s = matchSession(loadAll(), prefix);
+  const m = matchSession(loadAll(), prefix);
+  if (m.ambiguous)
+    return `prefix "${prefix}" matches ${m.ambiguous.length} sessions: ${m.ambiguous.join(", ")}`;
+  const s = m.s;
   if (!s) return `no session matching "${prefix}"`;
   const grep = (f.grep as string)?.toLowerCase();
   const turns = grep ? s.turns.filter((t) => t.text.toLowerCase().includes(grep)) : s.turns;

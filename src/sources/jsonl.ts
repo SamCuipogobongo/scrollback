@@ -20,7 +20,15 @@ const SKIP_BLOCK_TYPES = new Set([
   "tool_result",
   "toolResult",
   "tool_use",
+  "tool_call",
+  "toolRequest",
+  "toolResponse",
   "thinking",
+  "think",
+  "thought",
+  "reasoning",
+  "reasoning_text",
+  "redacted_thinking",
 ]);
 
 /** Extract text from a content field: string, block array, or nested message. */
@@ -33,7 +41,11 @@ export function textOf(content: any): string {
           ? b
           : SKIP_BLOCK_TYPES.has(b?.type)
             ? ""
-            : (b?.text ?? b?.Text ?? textOf(b?.content ?? "")),
+            : typeof b?.text === "string"
+              ? b.text
+              : typeof b?.Text === "string"
+                ? b.Text
+                : textOf(b?.content ?? ""),
       )
       .join("\n");
   if (content && typeof content === "object")

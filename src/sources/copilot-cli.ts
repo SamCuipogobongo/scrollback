@@ -13,7 +13,11 @@ export const copilotCli: Source = {
   id: "copilot-cli",
   roots() {
     const base = process.env.COPILOT_HOME || join(HOME, ".copilot");
-    return [...envRoots("copilot"), join(base, "session-state")];
+    return [
+      ...envRoots("copilot-cli"), // SCROLLBACK_COPILOT_CLI_ROOT (convention)
+      ...envRoots("copilot"), // SCROLLBACK_COPILOT_ROOT (back-compat)
+      join(base, "session-state"),
+    ];
   },
   sessions(root) {
     if (!existsSync(root)) return [];

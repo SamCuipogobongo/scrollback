@@ -44,7 +44,7 @@ function scanSandboxes(agentDir: string): Map<string, SandboxInfo> {
     const sid = basename(f, ".json");
     let cwd = "";
     const doc = readJson(join(dir, f));
-    for (const p of doc?.permission || []) {
+    for (const p of Array.isArray(doc?.permission) ? doc.permission : []) {
       if (p?.dir_type === "workspace" && p.file_inherit_user) {
         cwd = p.file_inherit_user;
         break;
@@ -96,7 +96,9 @@ function scanWorkspaceDbs(wsDir: string): Map<string, WsHit> {
           cwd: folderOf(hashDir),
           mtime: statSync(dbPath).mtimeMs,
         };
-        for (const item of doc?.response?.result || []) {
+        for (const item of Array.isArray(doc?.response?.result)
+          ? doc.response.result
+          : []) {
           const t = cleanText(String(item?.text ?? ""));
           if (t && !isUserNoise(t)) hit.texts.push(t);
         }

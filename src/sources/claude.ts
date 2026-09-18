@@ -14,7 +14,7 @@ function parseFile(path: string, id: string): Session | null {
   const turns: Turn[] = [];
   for (const ev of readJsonl(path)) {
     if (!cwd && ev.cwd) cwd = ev.cwd;
-    if (!startedAt && ev.timestamp) startedAt = Date.parse(ev.timestamp);
+    if (!startedAt && ev.timestamp) startedAt = Date.parse(ev.timestamp) || 0;
     // compact summary: drop everything before it, keep summary as anchor
     if (ev.isCompactSummary) {
       turns.length = 0;

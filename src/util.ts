@@ -7,6 +7,7 @@ import {
   existsSync,
   copyFileSync,
   mkdtempSync,
+  rmSync,
 } from "node:fs";
 import { join } from "node:path";
 import { homedir, tmpdir } from "node:os";
@@ -73,9 +74,18 @@ export function envRoots(id: string): string[] {
  * Open a sqlite db read-only on a tmp snapshot (copies db+wal+shm) so a live
  * writer never blocks us. Caller must close. Returns null if unavailable.
  */
+const snapshotTmps: string[] = [];
+process.on("exit", () => {
+  for (const d of snapshotTmps)
+    try {
+      rmSync(d, { recursive: true, force: true });
+    } catch {}
+});
+
 export function openSqliteSnapshot(dbPath: string): any {
   try {
     const tmp = mkdtempSync(join(tmpdir(), "scrollback-db-"));
+    snapshotTmps.push(tmp);
     for (const suffix of ["", "-wal", "-shm"]) {
       const src = dbPath + suffix;
       if (existsSync(src)) copyFileSync(src, join(tmp, "snap.db" + suffix));

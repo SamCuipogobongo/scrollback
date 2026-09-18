@@ -108,20 +108,31 @@ export const cline: Source = {
           join(v, "sessions"),
           join(v, "tasks"),
         );
+    // CLINE_SESSION_DATA_DIR points at the sessions/ leaf itself
+    if (process.env.CLINE_SESSION_DATA_DIR)
+      out.push(process.env.CLINE_SESSION_DATA_DIR);
     return [...new Set(out)];
   },
   sessions(root) {
     if (!existsSync(root) || !isDir(root)) return [];
     const out: Session[] = [];
-    for (const id of readdirSync(root)) {
-      const dir = join(root, id);
-      if (!isDir(dir)) continue;
-      let s: Session | null = null;
-      if (existsSync(join(dir, `${id}.messages.json`)))
-        s = parseSessionDir(dir, id);
-      else if (existsSync(join(dir, "api_conversation_history.json")))
-        s = parseTaskFile(join(dir, "api_conversation_history.json"), id);
-      if (s) out.push(s);
+    const seen = new Set<string>();
+    // root may be the leaf (…/sessions|…/tasks) or a parent that contains them
+    for (const scan of [root, join(root, "sessions"), join(root, "tasks")]) {
+      if (!isDir(scan)) continue;
+      for (const id of readdirSync(scan)) {
+        const dir = join(scan, id);
+        if (!isDir(dir)) continue;
+        let s: Session | null = null;
+        if (existsSync(join(dir, `${id}.messages.json`)))
+          s = parseSessionDir(dir, id);
+        else if (existsSync(join(dir, "api_conversation_history.json")))
+          s = parseTaskFile(join(dir, "api_conversation_history.json"), id);
+        if (s && !seen.has(s.id)) {
+          seen.add(s.id);
+          out.push(s);
+        }
+      }
     }
     return out;
   },

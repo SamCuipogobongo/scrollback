@@ -42,7 +42,8 @@ function parseStateDb(dbPath: string): Session[] {
     const headersRow = d
       .prepare(`SELECT value FROM ItemTable WHERE key='composer.composerHeaders'`)
       .get() as any;
-    const headers: any[] = headersRow ? JSON.parse(headersRow.value) : [];
+    const parsed: any = headersRow ? JSON.parse(headersRow.value) : [];
+    const headers: any[] = Array.isArray(parsed) ? parsed : [];
     const meta = new Map<string, any>();
     for (const h of headers) if (h?.composerId) meta.set(h.composerId, h);
 
@@ -103,7 +104,7 @@ function parseCliTranscripts(root: string): Session[] {
     let startedAt = 0;
     for (const ev of readJsonl(f)) {
       if (!cwd && ev.cwd) cwd = ev.cwd;
-      if (!startedAt && ev.timestamp) startedAt = Date.parse(ev.timestamp);
+      if (!startedAt && ev.timestamp) startedAt = Date.parse(ev.timestamp) || 0;
       const t = extractTurn(ev);
       if (!t) continue;
       if (t.role === "user" && isUserNoise(t.text)) continue;

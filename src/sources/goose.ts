@@ -63,14 +63,22 @@ export const goose: Source = {
           if (has("sessions") && has("messages")) {
             const rows = d
               .prepare(
-                `SELECT s.id, s.working_dir, s.description, s.created_timestamp, m.role, m.content_json
+                `SELECT s.id, s.working_dir, s.description, s.created_at, m.role, m.content_json
                    FROM sessions s JOIN messages m ON m.session_id = s.id
                   ORDER BY s.id, m.created_timestamp`,
               )
               .all() as any[];
             const byId = new Map<string, Session>();
             for (const r of rows) {
-              const t = extractTurn({ role: r.role, content: r.content_json });
+              let content: any = r.content_json;
+              if (typeof content === "string") {
+                try {
+                  content = JSON.parse(content); // content_json is serialized JSON
+                } catch {
+                  continue;
+                }
+              }
+              const t = extractTurn({ role: r.role, content });
               if (!t) continue;
               if (t.role === "user" && isUserNoise(t.text)) continue;
               let s = byId.get(r.id);
@@ -79,7 +87,10 @@ export const goose: Source = {
                   platform: "goose",
                   id: r.id,
                   cwd: r.working_dir || "",
-                  startedAt: (r.created_timestamp || 0) * 1000,
+                  startedAt:
+                    typeof r.created_at === "number"
+                      ? r.created_at * 1000
+                      : Date.parse(r.created_at ?? "") || 0,
                   title: r.description,
                   turns: [],
                 };

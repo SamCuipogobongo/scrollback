@@ -3,6 +3,7 @@
 import type { Session, Source } from "./types.ts";
 import { dedupeTurns } from "./clean.ts";
 import { existsSync } from "node:fs";
+import { resolve } from "node:path";
 import { claude } from "./sources/claude.ts";
 import { codex } from "./sources/codex.ts";
 import { devin } from "./sources/devin.ts";
@@ -55,21 +56,30 @@ export interface DetectedSource {
 export function detectSources(): DetectedSource[] {
   return SOURCES.map((source) => ({
     source,
-    roots: source.roots().filter((r) => !r.includes("*") && existsSync(r)),
+    // roots may carry "|app" suffixes (vscode-family) — check the path part
+    roots: source
+      .roots()
+      .filter((r) => !r.includes("*") && existsSync(r.split("|")[0])),
   })).filter((d) => d.roots.length > 0);
 }
 
 export function loadAll(platform?: string): Session[] {
   const all: Session[] = [];
+  const seen = new Set<string>();
   const want = (p: string) =>
     p === platform || p.startsWith(platform + ":"); // "trae:cline" matches --platform trae
   for (const source of SOURCES) {
     const family = source.id === "vscode"; // produces per-app platform tags
-    if (platform && platform !== "all" && source.id !== platform && !family) continue;
+    const selfMatch = platform === source.id; // "vscode" selects every app tag
+    if (platform && platform !== "all" && !selfMatch && !family) continue;
     for (const root of source.roots()) {
       try {
         for (const s of source.sessions(root)) {
-          if (platform && platform !== "all" && !want(s.platform)) continue;
+          if (platform && platform !== "all" && !selfMatch && !want(s.platform))
+            continue;
+          const key = `${s.platform}:${s.id}`;
+          if (seen.has(key)) continue; // overlapping roots must not double-count
+          seen.add(key);
           all.push(s);
         }
       } catch {
@@ -81,8 +91,14 @@ export function loadAll(platform?: string): Session[] {
   return all.filter((s) => s.turns.length);
 }
 
-export const sinceMs = (d?: string) => (d ? Date.parse(d + "T00:00:00") : 0);
-export const untilMs = (d?: string) => (d ? Date.parse(d + "T23:59:59") : Infinity);
+export const sinceMs = (d?: string) => {
+  const v = d ? Date.parse(d + "T00:00:00") : 0;
+  return Number.isFinite(v) ? v : 0; // invalid --since must not hide everything
+};
+export const untilMs = (d?: string) => {
+  const v = d ? Date.parse(d + "T23:59:59") : Infinity;
+  return Number.isFinite(v) ? v : Infinity;
+};
 
 export function applyScope(
   sessions: Session[],
@@ -92,7 +108,8 @@ export function applyScope(
   const until = untilMs(f.until as string);
   let out = sessions.filter((s) => s.startedAt >= since && s.startedAt <= until);
   if (!f.global) {
-    const cwd = ((f.cwd as string) || process.cwd()).replace(/\/+$/, "");
+    // resolve so relative --cwd (".", "../x") matches stored absolute paths
+    const cwd = resolve((f.cwd as string) || process.cwd()).replace(/\/+$/, "");
     const home = process.env.HOME || "";
     out = out.filter(
       (s) =>
@@ -107,5 +124,15 @@ export function applyScope(
 export const fmtDate = (ms: number) =>
   ms ? new Date(ms).toISOString().slice(0, 16).replace("T", " ") : "????-??-?? ??:??";
 
-export const matchSession = (sessions: Session[], prefix: string) =>
-  sessions.find((s) => s.id === prefix || s.id.startsWith(prefix));
+/** Resolve a session id or unique prefix; reports ambiguity instead of guessing. */
+export function matchSession(
+  sessions: Session[],
+  prefix: string,
+): { s?: Session; ambiguous?: string[] } {
+  if (!prefix) return {};
+  const exact = sessions.find((s) => s.id === prefix);
+  if (exact) return { s: exact };
+  const hits = sessions.filter((s) => s.id.startsWith(prefix));
+  if (hits.length === 1) return { s: hits[0] };
+  return hits.length ? { ambiguous: hits.map((h) => h.id) } : {};
+}

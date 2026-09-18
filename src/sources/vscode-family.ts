@@ -73,7 +73,7 @@ function parseTaskFile(path: string, app: string, ext: string): Session | null {
     turns.push(t);
   }
   if (!turns.length) return null;
-  const writer = /cline|roo|kilo/i.test(ext) ? "cline" : ext;
+  const writer = /cline|claude-dev|roo|kilo/i.test(ext) ? "cline" : ext;
   const taskId = basename(join(path, ".."));
   return {
     platform: platformTag(app, writer),
@@ -97,8 +97,12 @@ function parseChatSession(path: string, app: string): Session | null {
   for (const r of reqs) {
     const uText = cleanText(textOf(r?.message?.text ?? r?.message ?? ""));
     if (uText && !isUserNoise(uText)) turns.push({ role: "user", text: uText });
+    // real files store response as an ARRAY of parts ({value}, {kind,content:{value}})
+    const resp = r?.response;
     const aText = cleanText(
-      textOf(r?.response?.value ?? r?.response?.message ?? r?.response ?? ""),
+      Array.isArray(resp)
+        ? resp.map((p: any) => p?.value ?? p?.content?.value ?? "").join("\n")
+        : textOf(resp?.value ?? resp?.message ?? resp ?? ""),
     );
     if (aText) turns.push({ role: "assistant", text: aText });
   }

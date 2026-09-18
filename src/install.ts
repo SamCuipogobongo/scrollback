@@ -12,6 +12,7 @@ interface Target {
   detect: string; // dir that proves the agent is installed
   skillsDir?: string; // where SKILL.md packages live
   mcpJson?: string; // JSON file with a top-level "mcpServers" object
+  mcpOpencode?: string; // opencode.json — top-level "mcp" + {type,command[]}
   mcpToml?: string; // codex-style config.toml ([mcp_servers.<name>])
 }
 
@@ -37,7 +38,7 @@ const TARGETS: Target[] = [
     agent: "opencode",
     detect: join(HOME, ".local/share/opencode"),
     skillsDir: join(HOME, ".config/opencode/skills"),
-    mcpJson: join(HOME, ".config/opencode/opencode.json"),
+    mcpOpencode: join(HOME, ".config/opencode/opencode.json"),
   },
   {
     agent: "factory",
@@ -171,12 +172,41 @@ function mergeMcpJson(path: string, cmd: string, args: string[], dry: boolean): 
   const next = { command: cmd, args };
   if (prev && prev.command === cmd && JSON.stringify(prev.args) === JSON.stringify(args))
     return `    = ${path}: already configured`;
-  doc.mcpServers.scrollback = next;
+  // preserve user-added keys (env, disabled, alwaysAllow…) on update
+  doc.mcpServers.scrollback =
+    prev && typeof prev === "object" ? Object.assign(prev, next) : next;
   if (!dry) {
     mkdirSync(dirname(path), { recursive: true });
     writeFileSync(path, JSON.stringify(doc, null, 2) + "\n");
   }
   return `    ${prev ? "~" : "+"} ${path}: mcpServers.scrollback${prev ? " (updated)" : ""}`;
+}
+
+// opencode.json uses a different shape: { "mcp": { name: { type, command[], enabled } } }
+function mergeOpencodeJson(path: string, cmd: string, args: string[], dry: boolean): string {
+  let doc: any = {};
+  if (existsSync(path)) {
+    try {
+      doc = JSON.parse(readFileSync(path, "utf8"));
+    } catch {
+      return `    ! ${path}: unparsable JSON — skipped`;
+    }
+  }
+  if (!doc || typeof doc !== "object" || Array.isArray(doc))
+    return `    ! ${path}: not a JSON object — skipped`;
+  if (!doc.mcp || typeof doc.mcp !== "object" || Array.isArray(doc.mcp))
+    doc.mcp = {};
+  const prev = doc.mcp.scrollback;
+  const next = { type: "local", command: [cmd, ...args], enabled: true };
+  if (prev && JSON.stringify(prev) === JSON.stringify(next))
+    return `    = ${path}: already configured`;
+  doc.mcp.scrollback =
+    prev && typeof prev === "object" ? Object.assign(prev, next) : next;
+  if (!dry) {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, JSON.stringify(doc, null, 2) + "\n");
+  }
+  return `    ${prev ? "~" : "+"} ${path}: mcp.scrollback${prev ? " (updated)" : ""}`;
 }
 
 const tomlStr = (s: string) => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
@@ -220,6 +250,8 @@ export function cmdInstall(f: Record<string, string | boolean>): string {
       lines.push(`    ${prev === null ? "+" : prev === content ? "=" : "~"} ${file}`);
     }
     if (t.mcpJson) lines.push(mergeMcpJson(t.mcpJson, cmd, mcpArgs, dry));
+    if (t.mcpOpencode)
+      lines.push(mergeOpencodeJson(t.mcpOpencode, cmd, mcpArgs, dry));
     if (t.mcpToml) lines.push(mergeMcpToml(t.mcpToml, cmd, mcpArgs, dry));
     lines.push("");
   }
