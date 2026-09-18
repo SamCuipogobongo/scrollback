@@ -83,7 +83,7 @@ platforms (auto-detected):
   antigravity  ~/.gemini/antigravity*/brain/*/…/transcript.jsonl
   codebuddy    ~/.codebuddy/projects/<cwd>/*.jsonl
   trae         <Trae CN>/ModularData/ai-agent (degraded: prompt echoes only)
-  cline        ~/.cline/data/tasks/*/api_conversation_history.json
+  cline        ~/.cline/data/sessions/*/*.messages.json (+ tasks/ legacy)
 
 override any root with SCROLLBACK_<PLATFORM>_ROOT (':'-separated).
 session ids accept any unique prefix.`;

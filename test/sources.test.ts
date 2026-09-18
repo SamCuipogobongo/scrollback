@@ -200,6 +200,22 @@ test("cline: standalone CLI task — tool_result blocks dropped", () => {
   assert.equal(s.turns.length, 2);
 });
 
+test("cline: real sessions/<sid> layout — meta + messages.json, thinking skipped", () => {
+  const ss = cline.sessions(join(FX, "cline/sessions"));
+  assert.equal(ss.length, 1);
+  const s = ss[0];
+  assert.equal(s.platform, "cline");
+  assert.equal(s.id, "1789735695015_gc9j9");
+  assert.equal(s.cwd, "/Users/test/myapp");
+  assert.equal(s.title, "fix retry logic");
+  assert.equal(s.startedAt, Date.parse("2026-09-18T12:52:23.076Z"));
+  const tx = texts(s);
+  assert.match(tx, /fetch wrapper needs retries/);
+  assert.match(tx, /exponential backoff/);
+  assert.doesNotMatch(tx, /user_input|open fetch\.ts/);
+  assert.equal(s.turns.length, 2);
+});
+
 test("cursor: agent-transcripts jsonl (cursor-agent CLI)", () => {
   const ss = cursor.sessions(join(FX, "cursor-cli/projects"));
   assert.equal(ss.length, 1);

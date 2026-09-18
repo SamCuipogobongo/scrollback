@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "session_id": "1789735695015_gc9j9",
+  "source": "cli",
+  "started_at": "2026-09-18T12:52:23.076Z",
+  "status": "idle",
+  "interactive": true,
+  "provider": "deepseek",
+  "model": "deepseek-flash",
+  "cwd": "/Users/test/myapp",
+  "workspace_root": "/Users/test/myapp",
+  "metadata": { "title": "fix retry logic" },
+  "messages_path": "/abs/path/1789735695015_gc9j9.messages.json"
+}
