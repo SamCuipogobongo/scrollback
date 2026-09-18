@@ -60,7 +60,10 @@ function parseTaskFile(path: string, app: string, ext: string): Session | null {
   const turns: Turn[] = [];
   let startedAt = 0;
   for (const m of msgs) {
-    const t = extractTurn(m);
+    const filtered = Array.isArray(m?.content)
+      ? { ...m, content: m.content.filter((b) => b?.type !== "tool_result") }
+      : m;
+    const t = extractTurn(filtered);
     if (!t) continue;
     if (t.role === "user" && isUserNoise(t.text)) continue;
     if (!startedAt && m?.ts) startedAt = Number(m.ts) || Date.parse(m.ts) || 0;

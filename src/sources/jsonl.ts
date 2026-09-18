@@ -21,7 +21,9 @@ export function textOf(content: any): string {
   if (Array.isArray(content))
     return content
       .map((b) =>
-        typeof b === "string" ? b : b?.text ?? b?.Text ?? b?.content ?? "",
+        typeof b === "string"
+          ? b
+          : (b?.text ?? b?.Text ?? textOf(b?.content ?? "")),
       )
       .join("\n");
   if (content && typeof content === "object")

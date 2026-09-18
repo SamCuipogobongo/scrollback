@@ -1,0 +1,47 @@
+{
+  "v": 3,
+  "id": "T-0199aaaa-bbbb-7ccc-8ddd-eeeeffff0001",
+  "created": "2026-09-17T14:23:11.000Z",
+  "title": "Fix flaky websocket reconnect",
+  "agentMode": "rush",
+  "nextMessageId": 5,
+  "env": {
+    "initial": {
+      "trees": [{ "path": "/Users/test/myapp" }],
+      "platform": "darwin",
+      "tags": [{ "name": "cli-version", "value": "0.0.42" }]
+    }
+  },
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        { "type": "text", "text": "amp: the websocket reconnect loop never backs off" }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        { "type": "thinking", "thinking": "let me look at the reconnect logic" },
+        { "type": "text", "text": "Added exponential backoff with jitter to the reconnect loop." },
+        { "type": "tool_use", "name": "Edit", "input": { "path": "src/ws.ts" } }
+      ],
+      "state": { "type": "complete" },
+      "usage": { "model": "claude-sonnet", "tokens": 1234 }
+    },
+    {
+      "role": "user",
+      "content": [
+        { "type": "tool_result", "toolResultID": "tu1", "content": [{ "type": "text", "text": "file edited" }] }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [{ "type": "text", "text": "also cap the retries" }]
+    },
+    {
+      "role": "assistant",
+      "content": [{ "type": "text", "text": "Capped at 8 attempts." }]
+    }
+  ]
+}
