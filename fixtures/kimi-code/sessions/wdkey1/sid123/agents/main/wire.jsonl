@@ -1,3 +1,8 @@
+{"type":"metadata","protocol_version":"1.5","created_at":1757601600000}
+{"type":"context.append_message","agentId":"main","message":{"role":"user","content":[{"type":"text","text":"<system-reminder>Today's date is 2026-09-11.</system-reminder>"}],"origin":{"kind":"injection"}},"time":1}
+{"type":"context.append_message","agentId":"main","message":{"role":"user","content":[{"type":"text","text":"add retries to the fetch wrapper"}],"origin":{"kind":"user"}},"time":2}
+{"type":"context.append_loop_event","agentId":"main","event":{"type":"content.part","part":{"type":"text","text":"Added exponential"}},"time":3}
+{"type":"agent.message.appended","message":{"message":{"role":"assistant","content":[{"type":"think","think":"hmm"},{"type":"text","text":"Added exponential backoff capped at 3 retries."}]},"meta":{"source":"llm"}},"time":4}
+{"type":"agent.message.appended","message":{"message":{"role":"user","content":[{"type":"text","text":"add retries to the fetch wrapper"}]},"meta":{"source":"input","origin":{"kind":"user"}},"time":5}
 {"_system_prompt":"you are kimi"}
-{"type":"message","role":"user","content":"add retries to the fetch wrapper"}
-{"type":"message","role":"assistant","content":[{"type":"text","text":"Added exponential backoff capped at 3 retries."}]}
+{"type":"message","role":"assistant","content":"legacy format line"}

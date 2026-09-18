@@ -10,11 +10,33 @@ import { existsSync, readdirSync } from "node:fs";
 import type { Session, Source, Turn } from "../types.ts";
 import { isUserNoise } from "../clean.ts";
 import { HOME, envRoots, isDir, readJson, readJsonl, walkFiles } from "../util.ts";
-import { extractTurn } from "./jsonl.ts";
+import { extractTurn, textOf } from "./jsonl.ts";
+import { cleanText } from "../clean.ts";
 
+// Real wire.jsonl carriers (verified on ~/.kimi-code):
+//   context.append_message  → user turns; origin.kind "injection" = date/
+//     reminder noise — drop. "user" = real prompt.
+//   agent.message.appended  → committed transcript; message.message is the
+//     {role,content}. Assistant text lives here (think blocks ignored via
+//     textOf). user-role entries duplicate append_message — skip them.
+//   context.append_loop_event → streaming partials + tool events — ignore.
 function parseWire(path: string, meta: any, id: string, cwd: string): Session | null {
   const turns: Turn[] = [];
   for (const ev of readJsonl(path)) {
+    if (ev?.type === "context.append_message") {
+      const m = ev.message;
+      if (m?.role !== "user" || m.origin?.kind !== "user") continue;
+      const t = cleanText(textOf(m.content));
+      if (t && !isUserNoise(t)) turns.push({ role: "user", text: t });
+      continue;
+    }
+    if (ev?.type === "agent.message.appended") {
+      const m = ev.message?.message;
+      if (m?.role !== "assistant") continue;
+      const t = cleanText(textOf(m.content));
+      if (t) turns.push({ role: "assistant", text: t });
+      continue;
+    }
     if (ev?._system_prompt || ev?.type === "_system_prompt") continue;
     const t = extractTurn(ev);
     if (!t) continue;
@@ -22,14 +44,10 @@ function parseWire(path: string, meta: any, id: string, cwd: string): Session | 
     turns.push(t);
   }
   if (!turns.length) return null;
-  return {
-    platform: "kimi",
-    id,
-    cwd,
-    startedAt: Date.parse(meta?.createdAt ?? meta?.created_at ?? meta?.created ?? "") || 0,
-    title: meta?.title,
-    turns,
-  };
+  const raw = meta?.createdAt ?? meta?.created_at ?? meta?.created;
+  const startedAt =
+    typeof raw === "number" ? raw : Date.parse(String(raw ?? "")) || 0;
+  return { platform: "kimi", id, cwd, startedAt, title: meta?.title, turns };
 }
 
 function scanSessionsDir(sessionsDir: string): Session[] {

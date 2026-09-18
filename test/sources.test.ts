@@ -138,8 +138,20 @@ test("kimi: wire.jsonl under agents/main, state.json for meta", () => {
   const ss = kimi.sessions(join(FX, "kimi-code/sessions"));
   assert.equal(ss.length, 1);
   assert.equal(ss[0].cwd, "/Users/test/myapp");
-  assert.match(texts(ss[0]), /retries/);
-  assert.doesNotMatch(texts(ss[0]), /you are kimi/);
+  const tx = texts(ss[0]);
+  assert.match(tx, /retries/);
+  assert.doesNotMatch(tx, /you are kimi/);
+  // real-format carriers: injection dropped, loop partials ignored,
+  // user echo in agent.message.appended deduped
+  assert.doesNotMatch(tx, /system-reminder/);
+  assert.equal(
+    ss[0].turns.filter((t) => t.role === "user").length,
+    1,
+  );
+  assert.equal(
+    ss[0].turns.filter((t) => t.role === "assistant").length,
+    2,
+  );
 });
 
 test("continue: history array", () => {
