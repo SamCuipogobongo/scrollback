@@ -240,6 +240,10 @@ export function markLines(
   const maxY = Math.max(...all.map((p) => p[1]));
   const W = Math.ceil((maxX + 1) / 2);
   const H = Math.ceil((maxY + 1) / 4);
+  // crop to the content's cell bounds — leading/trailing blank cells would
+  // skew centering, which keys off the emitted line width
+  const c0 = Math.min(...all.map((p) => p[0] >> 1));
+  const c1 = Math.max(...all.map((p) => p[0] >> 1));
   const grid = Array.from({ length: H }, () =>
     Array.from({ length: W }, () => ({ b: 0, p: -1 })),
   );
@@ -268,6 +272,7 @@ export function markLines(
   }
   return grid.map((row) =>
     row
+      .slice(c0, c1 + 1)
       .map((c) => {
         if (c.p < 0) return " ";
         const ch = String.fromCodePoint(0x2800 + c.b);
@@ -300,64 +305,78 @@ export interface Page {
   body: [string, string][]; // [accent-left, dim-right] pairs
 }
 
-export function pages(stats: OnboardStats | null, rows = 24): Page[] {
+export type Lang = "en" | "zh";
+
+export function pages(stats: OnboardStats | null, rows = 24, lang: Lang = "en"): Page[] {
+  const zh = lang === "zh";
   const cap = Math.max(3, rows - 18); // body starts row 14, footer needs 3
   const sorted = stats ? [...stats.sources].sort((a, b) => b.n - a.n) : [];
   const shown = sorted.slice(0, sorted.length > cap ? cap - 1 : cap); // -1: room for "+N more"
   const scanBody: [string, string][] = shown.map((s) => [
     s.id,
-    `${s.n} session${s.n === 1 ? "" : "s"}`,
+    zh ? `${s.n} 个会话` : `${s.n} session${s.n === 1 ? "" : "s"}`,
   ]);
   if (sorted.length > shown.length)
-    scanBody.push(["", `+${sorted.length - shown.length} more — \`scrollback doctor\` shows them all`]);
-  if (stats) scanBody.push(["", `${stats.total} sessions readable — no index, no sync, no upload`]);
+    scanBody.push([
+      "",
+      zh
+        ? `+${sorted.length - shown.length} 个——\`scrollback doctor\` 查看全部`
+        : `+${sorted.length - shown.length} more — \`scrollback doctor\` shows them all`,
+    ]);
+  if (stats)
+    scanBody.push([
+      "",
+      zh ? `${stats.total} 个会话可读` : `${stats.total} sessions readable`,
+    ]);
   const scan: Page = stats
     ? sorted.length
       ? {
-          title: `${sorted.length} agent${sorted.length > 1 ? "s'" : "'s"} history found on this machine`,
+          title: zh
+            ? `识别到 ${sorted.length} 个 agent`
+            : `${sorted.length} agent${sorted.length > 1 ? "s" : ""} detected`,
           body: scanBody,
         }
       : {
-          title: "No agent history found yet",
-          body: [
-            ["", "scrollback reads the history files your agents already keep —"],
-            ["", "run claude, codex, kimi & friends and they show up here"],
-          ],
+          title: zh ? "还没有识别到 agent" : "No agents detected yet",
+          body: zh
+            ? [
+                ["", "scrollback 直接读 agent 已有的历史文件——"],
+                ["", "跑过 claude、codex、kimi 等之后就会出现在这里"],
+              ]
+            : [
+                ["", "scrollback reads the history files your agents already keep —"],
+                ["", "run claude, codex, kimi & friends and they show up here"],
+              ],
         }
     : {
-        title: "Scanning your agents…",
-        body: [["", "reading local history files"]],
+        title: zh ? "正在扫描本地 Agent…" : "Scanning local agents…",
+        body: [["", zh ? "正在读取本地历史文件" : "reading local history files"]],
       };
+
+  // language picker: the active option gets the arrow + accent color, the
+  // other stays dim — up/down moves the highlight, enter/space confirms
+  const opt = (n: string, label: string, on: boolean): [string, string] =>
+    on ? [`❯ ${n} ${label}`, ""] : ["", `  ${n} ${label}`];
 
   return [
     {
-      title: "Welcome to Scrollback",
-      body: [["", "Unified memory layer across agents"]],
-    },
-    {
-      title: "Recall anything you've discussed",
+      title: zh ? "欢迎使用 Scrollback" : "Welcome to Scrollback",
       body: [
-        ['"hey claude, what color did I pick earlier in codex?"', ""],
-        ['scrollback search "dark mode" --codex', ""],
-        ['"You picked dark mode in session a3f2"', ""],
+        ["", zh ? "跨 agent 的统一记忆层" : "Unified memory layer across agents"],
+        ["", ""],
+        ["", zh ? "请选择语言" : "Please choose your language"],
+        opt("1", "English", !zh),
+        opt("2", "简体中文", zh),
       ],
     },
     scan,
     {
-      title: "More than recall — agents working for each other",
+      title: zh ? "开始使用" : "Get started",
       body: [
-        ['scrollback channel send <ch> "<msg>"', "message another agent's inbox"],
-        ['scrollback spawn claude "<task>"', "hand a task to another agent"],
-        ["scrollback inbox <you> · workers", "read replies, see who's still working"],
-      ],
-    },
-    {
-      title: "Get started",
-      body: [
-        ["scrollback doctor", "which agents it found, and how much history"],
-        ["scrollback install", "set it up inside every agent you run"],
-        ["scrollback --help", "everything else"],
-        ["", "replay this tour anytime: `scrollback onboarding`"],
+        ["scrollback doctor", zh ? "看看找到了哪些 agent、有多少历史" : "which agents it found, and how much history"],
+        ["scrollback install", zh ? "把它接入你用的每个 agent" : "set it up inside every agent you run"],
+        ["scrollback --help", zh ? "其他全部命令" : "everything else"],
+        ["", zh ? "随时重播本引导：`scrollback onboarding`" : "replay this tour anytime: `scrollback onboarding`"],
       ],
     },
   ];
@@ -366,7 +385,22 @@ export function pages(stats: OnboardStats | null, rows = 24): Page[] {
 // ---------- render ----------
 
 const strip = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
-const visLen = (s: string) => strip(s).length;
+// display width: CJK/fullwidth codepoints occupy two terminal cells —
+// counting raw length would skew the centering math for zh text
+const wide = (cp: number) =>
+  cp >= 0x1100 &&
+  (cp <= 0x115f ||
+    cp === 0x2329 ||
+    cp === 0x232a ||
+    (cp >= 0x2e80 && cp <= 0xa4cf) ||
+    (cp >= 0xac00 && cp <= 0xd7a3) ||
+    (cp >= 0xf900 && cp <= 0xfaff) ||
+    (cp >= 0xfe30 && cp <= 0xfe6f) ||
+    (cp >= 0xff00 && cp <= 0xff60) ||
+    (cp >= 0xffe0 && cp <= 0xffe6) ||
+    (cp >= 0x20000 && cp <= 0x3fffd));
+const visLen = (s: string) =>
+  [...strip(s)].reduce((n, ch) => n + (wide(ch.codePointAt(0)!) ? 2 : 1), 0);
 
 function frame(
   page: Page,
@@ -378,6 +412,7 @@ function frame(
   color: "true" | "basic" | "none",
   mark: MarkId | string,
   scrollOff = 0,
+  lang: Lang = "en",
 ): string {
   const out: string[] = Array.from({ length: rows }, () => "");
   const center = (s: string) => " ".repeat(Math.max(0, Math.floor((cols - visLen(s)) / 2))) + s;
@@ -387,7 +422,9 @@ function frame(
   const acc = (s: string) => (color === "none" ? s : `\x1b[38;2;255;255;255m${s}\x1b[0m`);
 
   if (cols < 72 || rows < 21) {
-    out[Math.floor(rows / 2)] = center("terminal too small — resize, then space");
+    const msg =
+      lang === "zh" ? "终端太小——请调整大小后按空格" : "terminal too small — resize, then space";
+    out[Math.floor(rows / 2)] = center(msg);
     return out.join("\n");
   }
 
@@ -407,8 +444,11 @@ function frame(
   for (const l of block) out[row++] = " ".repeat(bx) + l;
 
   // footer
+  const zh = lang === "zh";
   out[rows - 3] = center(dim(`${pageIdx + 1}/${pageCount}`));
-  out[rows - 2] = center(dim(pageIdx + 1 === pageCount ? "Space to finish" : "Space to continue"));
+  out[rows - 2] = center(
+    dim(pageIdx + 1 === pageCount ? (zh ? "空格 完成" : "Space to finish") : zh ? "空格 继续" : "Space to continue"),
+  );
   return out.join("\n");
 }
 
@@ -445,10 +485,11 @@ export function runOnboarding(opts: { mark?: string } = {}): Promise<void> {
     );
     let idx = 0;
     let stats: OnboardStats | null = null;
+    let lang: Lang = "en";
     const noAnim = !!process.env.SCROLLBACK_NO_ANIM;
     let markFrac = noAnim ? 1 : 0;
     let done = false;
-    let specCache = pages(null);
+    let specCache = pages(null, 24, lang);
     const t0 = Date.now();
     const ANIM_MS = 800;
     const REST_MS = 300; // beat on the finished mark before the paper moves
@@ -457,7 +498,7 @@ export function runOnboarding(opts: { mark?: string } = {}): Promise<void> {
     let scrollOff = 0;
 
     const paint = () => {
-      specCache = pages(stats, out.rows || 24);
+      specCache = pages(stats, out.rows || 24, lang);
       const body = frame(
         specCache[idx],
         idx,
@@ -468,6 +509,7 @@ export function runOnboarding(opts: { mark?: string } = {}): Promise<void> {
         color,
         mark,
         scrollOff,
+        lang,
       );
       // \x1b[K per line erases leftovers from the previous frame — without it,
       // shrinking content (mid-animation mark) leaves ghost text behind
@@ -539,6 +581,16 @@ export function runOnboarding(opts: { mark?: string } = {}): Promise<void> {
       // is drawn instantly — they've already seen the reveal
       markFrac = 1;
       startScan(); // they're past the mark — start gathering for page 3 now
+      if (idx === 0 && (name === "up" || name === "down")) {
+        // move the picker highlight — the language follows live so the whole
+        // page previews in the selected language
+        lang = lang === "en" ? "zh" : "en";
+        return paint();
+      }
+      if (idx === 0 && (name === "1" || name === "2")) {
+        lang = name === "1" ? "en" : "zh";
+        return paint();
+      }
       if (name === "left" || name === "backspace") {
         if (idx > 0) idx--;
         return paint();

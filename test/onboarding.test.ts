@@ -38,10 +38,11 @@ test("marks: every mark renders braille", () => {
 
 // Decode a rendered row's text-line occupancy inside the wall window.
 // Text dots may sit at any sub-row (staggered phases + mid-step pairs), so
-// occupancy = any lit bit in the interior cell columns 10..23 — the sheet
-// edges live at columns 7 and 26, outside this band.
+// occupancy = any lit bit in the interior cell columns 5..18 — emitted lines
+// are cropped to content (c0=5), so the sheet edges sit at columns 2 and 21,
+// outside this band.
 const hasText = (line: string) =>
-  [...line].slice(10, 24).some((ch) => ch.codePointAt(0)! - 0x2800 > 0);
+  [...line].slice(5, 19).some((ch) => ch.codePointAt(0)! - 0x2800 > 0);
 
 test("wall scroll: document flows downward through a fixed frame", () => {
   const f = (off: number) => markLines(1, "none", "wall", off);
@@ -74,25 +75,38 @@ test("mark: ramp goes dim -> bright along the path", () => {
   assert.ok(r1 > r0 && g1 > g0);
 });
 
-test("pages: five pages, scan page reflects live stats", () => {
+test("pages: three pages, scan page reflects live stats", () => {
   const spec = pages({ sources: [{ id: "claude", n: 130 }, { id: "codex", n: 66 }], total: 196 });
-  assert.equal(spec.length, 5);
+  assert.equal(spec.length, 3);
   assert.match(spec[0].title, /Welcome/);
-  assert.equal(spec[2].title, "2 agents' history found on this machine");
-  const body = spec[2].body.map(([c, d]) => `${c} ${d}`).join("\n");
+  assert.equal(spec[1].title, "2 agents detected");
+  const body = spec[1].body.map(([c, d]) => `${c} ${d}`).join("\n");
   assert.match(body, /claude 130 sessions/);
   assert.match(body, /196 sessions readable/);
 });
 
+test("pages: zh language renders Chinese copy with the picker", () => {
+  const spec = pages({ sources: [{ id: "claude", n: 5 }], total: 5 }, 24, "zh");
+  assert.equal(spec.length, 3);
+  const welcome = spec[0].body.map(([c, d]) => `${c} ${d}`).join("\n");
+  assert.match(welcome, /请选择语言/);
+  assert.match(welcome, /简体中文/);
+  // picker marks the active option — zh selected, en plain
+  assert.match(welcome, /❯ 2 简体中文/);
+  assert.doesNotMatch(welcome, /❯ 1 English/);
+  assert.equal(spec[1].title, "识别到 1 个 agent");
+  assert.equal(spec[2].title, "开始使用");
+});
+
 test("pages: null stats -> scanning placeholder; empty -> no sources", () => {
-  assert.match(pages(null)[2].title, /Scanning/);
-  assert.match(pages({ sources: [], total: 0 })[2].title, /No agent history/);
+  assert.match(pages(null)[1].title, /Scanning/);
+  assert.match(pages({ sources: [], total: 0 })[1].title, /No agents detected/);
 });
 
 test("pages: long source list truncates with a +N more line", () => {
   const sources = Array.from({ length: 10 }, (_, i) => ({ id: `p${i}`, n: 10 - i }));
   const spec = pages({ sources, total: 55 }, 21); // cap = 3, truncating -> shows 2
-  const scan = spec[2];
+  const scan = spec[1];
   const lines = scan.body.map(([c]) => c).filter(Boolean);
   assert.equal(lines.length, 2);
   assert.match(scan.body.map(([, d]) => d).join("\n"), /\+8 more/);
@@ -109,7 +123,7 @@ test("printOnboarding: static dump has mark, all pages, no ANSI", () => {
   const out = printOnboarding();
   assert.doesNotMatch(out, /\x1b/);
   assert.match(out, /Welcome to Scrollback/);
-  assert.match(out, /5\/5 {2}Get started/);
+  assert.match(out, /3\/3 {2}Get started/);
 });
 
 test("gatherStats: real scan returns a total consistent with its sources", () => {
