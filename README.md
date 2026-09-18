@@ -2,6 +2,8 @@
 
 **The open-source admin plane for every coding agent.**
 
+**English** · [简体中文](README.zh-CN.md)
+
 [![npm](https://img.shields.io/npm/v/sam-scrollback?style=flat-square)](https://www.npmjs.com/package/sam-scrollback)
 [![license](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
 [![agents](https://img.shields.io/badge/agents-22-green?style=flat-square)](#why-scrollback)
@@ -72,10 +74,20 @@ scrollback context 94aa7e8b --grep "landing" --turns 3
 Session ids accept any unique prefix. Every storage root can be overridden
 with `SCROLLBACK_<PLATFORM>_ROOT` (`:`-separated for multiple).
 
+Channels — the admin plane, `~/.scrollback/channels`:
+
+```bash
+scrollback channel create <name> [--global] [--desc d] [--type chat|forum]
+scrollback channel send <name> "<body>" [--to w] [--by b] [--kind k] [--key k]
+scrollback channel read|watch|wait <name> [--from seq] [--kinds a,b]
+scrollback inbox <worker> [--channel c] [--all] [--mark]
+scrollback workers [--alive]                 # fleet view: state per worker
+scrollback spawn <claude|codex> "<task>" [--channel c]
+```
+
 ## Roadmap
 
 - **fleet** — every agent on one screen
-- **comms** — a durable channel agents reach each other through
 
 Design and competitive notes: [docs/channel-design.md](docs/channel-design.md) ·
 [docs/competitive.md](docs/competitive.md)
