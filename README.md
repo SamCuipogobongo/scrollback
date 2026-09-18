@@ -15,7 +15,9 @@ Factory Droid, Continue, Copilot CLI, Cursor, Zed, Copilot Chat,
 Cline/Roo/Kilo, Trae, Qoder, CodeBuddy, Aider, Goose, Antigravity.
 
 Local-first: a query scans the stores in place. Secrets are redacted at
-read time.
+read time. One honest limit: Trae CN keeps transcripts in an encrypted,
+server-synced store — there scrollback surfaces session cwd + sent
+prompts, not the full history.
 
 <p align="center">
   <img src="assets/demo.gif" alt="scrollback demo" width="720">
