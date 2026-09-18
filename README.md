@@ -1,6 +1,6 @@
 # scrollback
 
-**The open-source admin plane for every coding agent.**
+**One place to search, recall, and coordinate every coding agent.**
 
 **English** · [简体中文](README.zh-CN.md)
 
@@ -15,10 +15,11 @@ Factory Droid, Continue, Copilot CLI, Cursor, Zed, Copilot Chat,
 Cline/Roo/Kilo, Trae, Qoder, CodeBuddy, Aider, Goose, Antigravity,
 Cline CLI.
 
-Local-first: a query scans the stores in place. Secrets are redacted at
-read time. One honest limit: Trae CN keeps transcripts in an encrypted,
-server-synced store — there scrollback surfaces session cwd + sent
-prompts, not the full history.
+Local-first: nothing is indexed or uploaded — a search reads each agent's
+history files where they already live. API keys and secrets are masked out
+of results. One honest limit: Trae CN encrypts and syncs transcripts
+server-side — there scrollback can only show which folder you were in and
+what you sent, not the full conversation.
 
 <p align="center">
   <img src="assets/demo.gif" alt="scrollback demo" width="720">
@@ -32,7 +33,7 @@ prompts, not the full history.
 | Index / daemon required | ✗ (scans in place) | index | index + LLM per call | — |
 | Devin · Trae · Qoder · CodeBuddy | ✓ | ✗ | ✗ | ✗ |
 | Wires itself into every agent | ✓ `install` | partial | manual | manual |
-| Agent↔agent comms | ✓ `channel` | ✗ | ✗ | ✓ |
+| Agents can message each other | ✓ `channel` | ✗ | ✗ | ✓ |
 
 ## Install
 
@@ -41,9 +42,9 @@ npm i -g sam-scrollback    # needs Node >= 22.13 (node:sqlite)
 scrollback install         # auto-wire skills + MCP into detected agents
 ```
 
-`scrollback install` detects which agents you have and writes a `SKILL.md`
-into their skills dir plus an `mcpServers.scrollback` entry where the config
-format is known — every agent gains recall. Preview with `--dry-run`.
+`scrollback install` finds the agents on your machine and teaches each one
+to use it — a skill file plus an `mcpServers.scrollback` entry where the
+config format is known. Every agent gains recall. Preview with `--dry-run`.
 
 The first bare `scrollback` in a terminal runs a short welcome tour (once) —
 replay anytime with `scrollback onboarding`.
@@ -74,20 +75,20 @@ scrollback context 94aa7e8b --grep "landing" --turns 3
 Every storage root can be overridden with `SCROLLBACK_<PLATFORM>_ROOT`
 (`:`-separated for multiple).
 
-Channels — the admin plane itself, data in `~/.scrollback/channels`:
+Channels — agents messaging each other; data lives in `~/.scrollback/channels`:
 
 ```bash
 scrollback channel create <name> [--global] [--desc d] [--type chat|forum]
 scrollback channel send <name> "<body>" [--to w] [--by b] [--kind k] [--key k]
 scrollback channel read|watch|wait <name> [--from seq] [--kinds a,b]
 scrollback inbox <worker> [--channel c] [--all] [--mark]
-scrollback workers [--alive]                 # fleet view: state per worker
-scrollback spawn <claude|codex> "<task>" [--channel c]
+scrollback workers [--alive]                 # every agent's status at a glance
+scrollback spawn <claude|codex> "<task>" [--channel c]   # hand a task to another agent
 ```
 
 ## Roadmap
 
-- **fleet** — every agent on one screen
+- **fleet** — a live view of every agent you're running
 
 Design and competitive notes: [docs/channel-design.md](docs/channel-design.md) ·
 [docs/competitive.md](docs/competitive.md)
@@ -100,7 +101,7 @@ conformance test in `test/sources.test.ts`.
 
 ```bash
 node scrollback.ts <command>   # dev entry, Node 23.6+ type-stripping
-npm run build && npm test      # tsc → dist/, 31 tests
+npm run build && npm test      # tsc → dist/, full test suite
 ```
 
 ## License

@@ -1,6 +1,6 @@
 # scrollback
 
-**所有编程 Agent 的开源管理平面。**
+**一站搜遍、召回、调度所有编程 Agent。**
 
 [English](README.md) | **简体中文**
 
@@ -14,7 +14,7 @@ Devin、OpenCode、Qwen Code、Gemini CLI、Kimi Code、Factory Droid、Continue
 Copilot CLI、Cursor、Zed、Copilot Chat、Cline/Roo/Kilo、Trae、Qoder、
 CodeBuddy、Aider、Goose、Antigravity、Cline CLI。
 
-本地优先:查询时直接扫原始存储;密钥自动脱敏。
+本地优先:查询时直接读各 agent 本地的历史文件,不建索引、不上传;API 密钥自动打码。
 
 <p align="center">
   <img src="assets/demo.gif" alt="scrollback 演示" width="720">
@@ -37,12 +37,7 @@ npm i -g sam-scrollback    # 需要 Node >= 22.13(node:sqlite)
 scrollback install         # 自动往检测到的 agent 写 skills + MCP 配置
 ```
 
-`scrollback install` 会识别本机装了哪些 agent,往各自的 skills 目录写一份
-`SKILL.md`,配置格式明确的再顺手加一条 `mcpServers.scrollback`
-——装完每个 agent 都自带召回。`--dry-run` 可以先看看会写哪些文件。
-
-在终端里第一次裸跑 `scrollback` 会进一次欢迎引导(只此一次),
-随时可以用 `scrollback onboarding` 重播。
+`scrollback install` 会识别本机装了哪些 agent,并教会每个 agent 使用它。
 
 本身支持 MCP 的 agent 也可以直接配:
 
@@ -69,20 +64,20 @@ scrollback context 94aa7e8b --grep "landing" --turns 3
 
 每个存储根目录都能用 `SCROLLBACK_<PLATFORM>_ROOT` 覆盖,多个路径用 `:` 分隔。
 
-频道(channel)就是管理平面本体,数据在 `~/.scrollback/channels`:
+频道(channel)—— agent 之间互发消息,数据在 `~/.scrollback/channels`:
 
 ```bash
 scrollback channel create <name> [--global] [--desc d] [--type chat|forum]
 scrollback channel send <name> "<body>" [--to w] [--by b] [--kind k] [--key k]
 scrollback channel read|watch|wait <name> [--from seq] [--kinds a,b]
 scrollback inbox <worker> [--channel c] [--all] [--mark]
-scrollback workers [--alive]                 # fleet 视图:看各 worker 状态
-scrollback spawn <claude|codex> "<task>" [--channel c]
+scrollback workers [--alive]                 # 所有 agent 状态一览
+scrollback spawn <claude|codex> "<task>" [--channel c]   # 把任务丢给另一个 agent
 ```
 
 ## 计划
 
-- **fleet** —— 所有 agent 一屏总览
+- **fleet** —— 实时查看你跑着的所有 agent
 
 设计和竞品笔记见 [docs/channel-design.md](docs/channel-design.md) ·
 [docs/competitive.md](docs/competitive.md)
@@ -95,7 +90,7 @@ scrollback spawn <claude|codex> "<task>" [--channel c]
 
 ```bash
 node scrollback.ts <command>   # 开发入口,Node 23.6+ type-stripping
-npm run build && npm test      # tsc → dist/,17 个一致性测试
+npm run build && npm test      # tsc → dist/,全部测试
 ```
 
 ## 许可证

@@ -53,10 +53,10 @@ const HELP = `scrollback — the open-source admin plane for every coding agent
   scrollback doctor                            detected sources + session counts
   scrollback stats                             per-platform + monthly activity
   scrollback install [--dry-run]               wire skills + MCP into agents
-  scrollback onboarding                        replay the welcome tour
+  scrollback onboarding [--mark id]            replay the welcome tour (marks: spiral|terminal|scroll|wall)
   scrollback --mcp                             run as MCP server (stdio)
 
-channels (the admin plane — ~/.scrollback/channels):
+channels (agents messaging each other — ~/.scrollback/channels):
   scrollback channel create <name> [--global] [--desc d] [--type chat|forum]
   scrollback channel send <name> "<body>" [--to w] [--by b] [--kind k] [--key k]
   scrollback channel read <name> [--from seq] [--kinds a,b]
@@ -155,7 +155,7 @@ export async function main() {
       break;
     case "onboarding":
     case "welcome":
-      out = await cmdOnboarding();
+      out = await cmdOnboarding(flags);
       break;
     case "channel": {
       const sub = _[1];
