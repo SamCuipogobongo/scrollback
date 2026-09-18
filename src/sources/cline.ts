@@ -7,7 +7,7 @@
 // Legacy/docs layout also accepted: tasks/<taskId>/api_conversation_history.json
 // (same shape the VS Code extension writes — extension copies are covered by
 // vscode-family as "<app>:cline").
-// CLINE_DIR / CLINE_DATA_DIR replace ~/.cline/data when set.
+// CLINE_DIR replaces ~/.cline; CLINE_DATA_DIR replaces ~/.cline/data.
 // Env: SCROLLBACK_CLINE_ROOT.
 
 import { join } from "node:path";
@@ -22,7 +22,9 @@ function blockText(content: any): string {
   if (!Array.isArray(content)) return "";
   return cleanText(
     content
-      .filter((b) => b?.type === "text" && typeof b?.text === "string")
+      .filter(
+        (b) => (!b?.type || b.type === "text") && typeof b?.text === "string",
+      )
       .map((b) => b.text)
       .join("\n"),
   );
@@ -31,7 +33,11 @@ function blockText(content: any): string {
 // sessions/<sid>/<sid>.{json,messages.json}
 function parseSessionDir(dir: string, id: string): Session | null {
   const doc = readJson(join(dir, `${id}.messages.json`));
-  const msgs: any[] = Array.isArray(doc?.messages) ? doc.messages : [];
+  const msgs: any[] = Array.isArray(doc)
+    ? doc
+    : Array.isArray(doc?.messages)
+      ? doc.messages
+      : [];
   const turns: Turn[] = [];
   for (const m of msgs) {
     const role =
@@ -44,12 +50,14 @@ function parseSessionDir(dir: string, id: string): Session | null {
   }
   if (!turns.length) return null;
   const meta = readJson(join(dir, `${id}.json`)) ?? {};
+  const firstTs =
+    msgs.map((m) => Number(m?.ts) || Date.parse(m?.ts ?? "") || 0).find(Boolean) || 0;
   return {
     platform: "cline",
-    id: meta.session_id || id,
+    id: String(meta.session_id || id),
     cwd: meta.workspace_root || meta.cwd || "",
     startedAt:
-      Date.parse(meta.started_at ?? "") || Number(msgs[0]?.ts) || 0,
+      Number(meta.started_at) || Date.parse(meta.started_at ?? "") || firstTs,
     title:
       typeof meta.metadata?.title === "string"
         ? meta.metadata.title
@@ -63,14 +71,15 @@ function parseTaskFile(path: string, taskId: string): Session | null {
   const arr = readJson(path);
   const msgs: any[] = Array.isArray(arr)
     ? arr
-    : arr?.messages || arr?.conversation || [];
+    : Array.isArray(arr?.messages)
+      ? arr.messages
+      : Array.isArray(arr?.conversation)
+        ? arr.conversation
+        : [];
   const turns: Turn[] = [];
   let startedAt = 0;
   for (const m of msgs) {
-    const filtered = Array.isArray(m?.content)
-      ? { ...m, content: m.content.filter((b: any) => b?.type !== "tool_result") }
-      : m;
-    const t = extractTurn(filtered);
+    const t = extractTurn(m);
     if (!t) continue;
     if (t.role === "user" && isUserNoise(t.text)) continue;
     if (!startedAt && m?.ts) startedAt = Number(m.ts) || Date.parse(m.ts) || 0;
@@ -88,9 +97,18 @@ export const cline: Source = {
       join(HOME, ".cline/data/sessions"),
       join(HOME, ".cline/data/tasks"),
     ];
+    // CLINE_DIR replaces ~/.cline (data lives one level down); CLINE_DATA_DIR
+    // replaces ~/.cline/data. Both spellings are pushed for each — missing
+    // roots are filtered out downstream anyway.
     for (const v of [process.env.CLINE_DIR, process.env.CLINE_DATA_DIR])
-      if (v) out.push(join(v, "sessions"), join(v, "tasks"));
-    return out;
+      if (v)
+        out.push(
+          join(v, "data/sessions"),
+          join(v, "data/tasks"),
+          join(v, "sessions"),
+          join(v, "tasks"),
+        );
+    return [...new Set(out)];
   },
   sessions(root) {
     if (!existsSync(root) || !isDir(root)) return [];

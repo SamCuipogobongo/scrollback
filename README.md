@@ -100,7 +100,7 @@ conformance test in `test/sources.test.ts`.
 
 ```bash
 node scrollback.ts <command>   # dev entry, Node 23.6+ type-stripping
-npm run build && npm test      # tsc → dist/, 17 conformance tests
+npm run build && npm test      # tsc → dist/, 31 tests
 ```
 
 ## License

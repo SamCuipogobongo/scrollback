@@ -7,7 +7,7 @@
 // Trae CN, Qoder, Kiro, CodeBuddy, Void, Positron. Sessions are tagged with the
 // app name as platform (e.g. "trae") — or "<app>:cline"/"copilot-chat" where the
 // writer is identifiable.
-// Env: SCROLLBACK_VSCODE_ROOTS (':'-separated <App>/User roots).
+// Env: SCROLLBACK_VSCODE_ROOT (':'-separated <App>/User roots).
 
 import { join, basename } from "node:path";
 import { existsSync, readdirSync } from "node:fs";
@@ -56,14 +56,17 @@ function platformTag(app: string, writer: string): string {
 /** Cline-family api_conversation_history.json → messages[] array */
 function parseTaskFile(path: string, app: string, ext: string): Session | null {
   const arr = readJson(path);
-  const msgs: any[] = Array.isArray(arr) ? arr : arr?.messages || arr?.conversation || [];
+  const msgs: any[] = Array.isArray(arr)
+    ? arr
+    : Array.isArray(arr?.messages)
+      ? arr.messages
+      : Array.isArray(arr?.conversation)
+        ? arr.conversation
+        : [];
   const turns: Turn[] = [];
   let startedAt = 0;
   for (const m of msgs) {
-    const filtered = Array.isArray(m?.content)
-      ? { ...m, content: m.content.filter((b: any) => b?.type !== "tool_result") }
-      : m;
-    const t = extractTurn(filtered);
+    const t = extractTurn(m);
     if (!t) continue;
     if (t.role === "user" && isUserNoise(t.text)) continue;
     if (!startedAt && m?.ts) startedAt = Number(m.ts) || Date.parse(m.ts) || 0;
@@ -134,9 +137,8 @@ function parseGeneric(path: string, app: string, ext: string): Session | null {
   const turns: Turn[] = [];
   let startedAt = 0;
   if (doc) {
-    const msgs: any[] = Array.isArray(doc)
-      ? doc
-      : doc.messages || doc.history || doc.conversation || doc.records || [];
+    const cand = doc?.messages ?? doc?.history ?? doc?.conversation ?? doc?.records;
+    const msgs: any[] = Array.isArray(doc) ? doc : Array.isArray(cand) ? cand : [];
     for (const m of msgs) {
       const t = extractTurn(m);
       if (!t) continue;

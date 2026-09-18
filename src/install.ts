@@ -54,7 +54,7 @@ const TARGETS: Target[] = [
   {
     agent: "kimi",
     detect: join(HOME, ".kimi-code"),
-    mcpToml: join(HOME, ".kimi-code/config.toml"),
+    skillsDir: join(HOME, ".kimi-code/skills"),
   },
   {
     agent: "cline",
@@ -86,7 +86,7 @@ const TARGETS: Target[] = [
 function skillMd(command: string): string {
   return `---
 name: scrollback
-description: Search and recall past AI conversations across coding agents (claude, codex, devin, opencode, qwen, kimi, factory, continue, copilot-cli). Use whenever the user asks to remember, find, or look up anything discussed in previous AI sessions — "我之前跟 X 讨论过", "上次怎么处理 Y", "find what I said about Z". Reads local session storage only; nothing is uploaded.
+description: Search and recall past AI conversations across coding agents (claude, codex, devin, opencode, qwen, gemini, kimi, factory, continue, copilot-cli, cursor, zed, aider, goose, codebuddy, trae, cline, vscode-family). Use whenever the user asks to remember, find, or look up anything discussed in previous AI sessions — "我之前跟 X 讨论过", "上次怎么处理 Y", "find what I said about Z". Reads local session storage only; nothing is uploaded.
 ---
 
 # scrollback — cross-agent session recall
@@ -146,6 +146,14 @@ function resolveCommand(): string {
   return self ? `node ${self}` : "scrollback";
 }
 
+/** Split the display command on the first space only — paths may contain spaces. */
+function resolveInvocation(cmdStr: string): { cmd: string; args: string[] } {
+  const i = cmdStr.indexOf(" ");
+  return i < 0
+    ? { cmd: cmdStr, args: [] }
+    : { cmd: cmdStr.slice(0, i), args: [cmdStr.slice(i + 1)] };
+}
+
 function mergeMcpJson(path: string, cmd: string, args: string[], dry: boolean): string {
   let doc: any = {};
   if (existsSync(path)) {
@@ -155,7 +163,10 @@ function mergeMcpJson(path: string, cmd: string, args: string[], dry: boolean): 
       return `    ! ${path}: unparsable JSON — skipped`;
     }
   }
-  doc.mcpServers = doc.mcpServers || {};
+  if (!doc || typeof doc !== "object" || Array.isArray(doc))
+    return `    ! ${path}: not a JSON object — skipped`;
+  if (!doc.mcpServers || typeof doc.mcpServers !== "object" || Array.isArray(doc.mcpServers))
+    doc.mcpServers = {};
   const prev = doc.mcpServers.scrollback;
   const next = { command: cmd, args };
   if (prev && prev.command === cmd && JSON.stringify(prev.args) === JSON.stringify(args))
@@ -168,8 +179,10 @@ function mergeMcpJson(path: string, cmd: string, args: string[], dry: boolean): 
   return `    ${prev ? "~" : "+"} ${path}: mcpServers.scrollback${prev ? " (updated)" : ""}`;
 }
 
+const tomlStr = (s: string) => s.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+
 function mergeMcpToml(path: string, cmd: string, args: string[], dry: boolean): string {
-  const body = `[mcp_servers.scrollback]\ncommand = "${cmd}"\nargs = [${args.map((a) => `"${a}"`).join(", ")}]`;
+  const body = `[mcp_servers.scrollback]\ncommand = "${tomlStr(cmd)}"\nargs = [${args.map((a) => `"${tomlStr(a)}"`).join(", ")}]`;
   const cur = existsSync(path) ? readFileSync(path, "utf8") : "";
   const re = /\[mcp_servers\.scrollback\][\s\S]*?(?=\n\[|$)/;
   const existing = cur.match(re);
@@ -184,7 +197,7 @@ function mergeMcpToml(path: string, cmd: string, args: string[], dry: boolean): 
 export function cmdInstall(f: Record<string, string | boolean>): string {
   const dry = !!f["dry-run"];
   const cmdStr = resolveCommand();
-  const [cmd, ...rest] = cmdStr.split(" ");
+  const { cmd, args: rest } = resolveInvocation(cmdStr);
   const mcpArgs = [...rest, "--mcp"];
   const lines = [
     `scrollback install${dry ? " (dry run)" : ""}`,

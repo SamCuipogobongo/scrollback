@@ -15,6 +15,14 @@ function roleOf(v: any): Role | null {
   return null;
 }
 
+// Block types that carry tool output / reasoning, never conversation text.
+const SKIP_BLOCK_TYPES = new Set([
+  "tool_result",
+  "toolResult",
+  "tool_use",
+  "thinking",
+]);
+
 /** Extract text from a content field: string, block array, or nested message. */
 export function textOf(content: any): string {
   if (typeof content === "string") return content;
@@ -23,7 +31,9 @@ export function textOf(content: any): string {
       .map((b) =>
         typeof b === "string"
           ? b
-          : (b?.text ?? b?.Text ?? textOf(b?.content ?? "")),
+          : SKIP_BLOCK_TYPES.has(b?.type)
+            ? ""
+            : (b?.text ?? b?.Text ?? textOf(b?.content ?? "")),
       )
       .join("\n");
   if (content && typeof content === "object")
