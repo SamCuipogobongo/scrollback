@@ -48,7 +48,23 @@ const TARGETS: Target[] = [
   {
     agent: "qwen",
     detect: join(HOME, ".qwen"),
+    skillsDir: join(HOME, ".qwen/skills"),
     mcpJson: join(HOME, ".qwen/settings.json"),
+  },
+  {
+    agent: "kimi",
+    detect: join(HOME, ".kimi-code"),
+    mcpToml: join(HOME, ".kimi-code/config.toml"),
+  },
+  {
+    agent: "cline",
+    detect: join(HOME, ".cline"),
+    mcpJson: join(HOME, ".cline/data/settings/cline_mcp_settings.json"),
+  },
+  {
+    agent: "codebuddy",
+    detect: join(HOME, ".codebuddy"),
+    skillsDir: join(HOME, ".codebuddy/skills"),
   },
   {
     agent: "gemini",
