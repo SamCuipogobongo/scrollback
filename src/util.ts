@@ -15,6 +15,15 @@ import { createRequire } from "node:module";
 export const HOME = homedir();
 const nodeRequire = createRequire(import.meta.url);
 
+/** Package version (works from src/ and dist/ — package.json sits one level up). */
+export const VERSION: string = (() => {
+  try {
+    return String(nodeRequire("../package.json").version);
+  } catch {
+    return "0.0.0";
+  }
+})();
+
 /** Read+parse a JSON file; null on any failure. */
 export function readJson(path: string): any {
   try {

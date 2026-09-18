@@ -4,6 +4,8 @@
 
 import { cmdContext, cmdDoctor, cmdExtract, cmdList, cmdProjects, cmdSearch, cmdStats } from "./commands.ts";
 import { cmdInstall } from "./install.ts";
+import { cmdOnboarding, runOnboarding, shouldAutorun } from "./onboarding.ts";
+import { VERSION } from "./util.ts";
 import { serveMcp } from "./mcp.ts";
 import {
   cmdChannelCreate,
@@ -51,6 +53,7 @@ const HELP = `scrollback — the open-source admin plane for every coding agent
   scrollback doctor                            detected sources + session counts
   scrollback stats                             per-platform + monthly activity
   scrollback install [--dry-run]               wire skills + MCP into agents
+  scrollback onboarding                        replay the welcome tour
   scrollback --mcp                             run as MCP server (stdio)
 
 channels (the admin plane — ~/.scrollback/channels):
@@ -95,12 +98,21 @@ export async function main() {
     return;
   }
   const cmd = _[0];
-  if (!cmd || flags.help || flags.h) {
+  if (flags.v || flags.version) {
+    console.log(`scrollback ${VERSION}`);
+    return;
+  }
+  if (!cmd) {
+    // first-ever bare `scrollback` in a terminal gets the tour, not the help wall
+    if (!flags.help && !flags.h && !Object.keys(flags).length && shouldAutorun()) {
+      await runOnboarding();
+      return;
+    }
     console.log(HELP);
     return;
   }
-  if (flags.v || flags.version) {
-    console.log("scrollback 0.2.0");
+  if (flags.help || flags.h) {
+    console.log(HELP);
     return;
   }
   let out: string | undefined;
@@ -140,6 +152,10 @@ export async function main() {
       break;
     case "install":
       out = cmdInstall(flags);
+      break;
+    case "onboarding":
+    case "welcome":
+      out = await cmdOnboarding();
       break;
     case "channel": {
       const sub = _[1];

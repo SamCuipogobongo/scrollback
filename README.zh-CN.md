@@ -41,6 +41,9 @@ scrollback install         # 自动往检测到的 agent 写 skills + MCP 配置
 `SKILL.md`,配置格式明确的再顺手加一条 `mcpServers.scrollback`
 ——装完每个 agent 都自带召回。`--dry-run` 可以先看看会写哪些文件。
 
+在终端里第一次裸跑 `scrollback` 会进一次欢迎引导(只此一次),
+随时可以用 `scrollback onboarding` 重播。
+
 本身支持 MCP 的 agent 也可以直接配:
 
 ```json

@@ -45,6 +45,9 @@ scrollback install         # auto-wire skills + MCP into detected agents
 into their skills dir plus an `mcpServers.scrollback` entry where the config
 format is known — every agent gains recall. Preview with `--dry-run`.
 
+The first bare `scrollback` in a terminal runs a short welcome tour (once) —
+replay anytime with `scrollback onboarding`.
+
 For agents that speak MCP directly:
 
 ```json

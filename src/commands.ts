@@ -251,27 +251,43 @@ export function cmdStats(f: Flags): string {
   return lines.join("\n");
 }
 
-export function cmdDoctor(f: Flags): string {
-  const lines = ["scrollback doctor\n"];
+export interface SourceCount {
+  id: string;
+  roots: string[];
+  n: number;
+}
+
+/** Per-source session counts; roots=[] means the source isn't on this machine. */
+export function countSessions(platform?: string): SourceCount[] {
   const detected = new Map(detectSources().map((d) => [d.source.id, d.roots]));
-  const only = f.platform && f.platform !== "all" ? String(f.platform) : null;
-  let total = 0;
-  for (const source of SOURCES) {
-    if (only && source.id !== only) continue;
-    const roots = detected.get(source.id);
-    if (!roots) {
-      lines.push(`  [${source.id.padEnd(11)}] — not detected`);
-      continue;
-    }
+  return SOURCES.filter(
+    (s) => !platform || platform === "all" || s.id === platform,
+  ).map((source) => {
+    const roots = detected.get(source.id) || [];
     let n = 0;
     for (const r of roots) {
       try {
         n += source.sessions(r).length;
       } catch {}
     }
-    total += n;
-    lines.push(`  [${source.id.padEnd(11)}] ${n} session(s)  ${roots.join(", ")}`);
+    return { id: source.id, roots, n };
+  });
+}
+
+export function cmdDoctor(f: Flags): string {
+  const lines = ["scrollback doctor\n"];
+  const only = f.platform && f.platform !== "all" ? String(f.platform) : null;
+  let total = 0,
+    detected = 0;
+  for (const c of countSessions(only || undefined)) {
+    if (!c.roots.length) {
+      lines.push(`  [${c.id.padEnd(11)}] — not detected`);
+      continue;
+    }
+    total += c.n;
+    detected++;
+    lines.push(`  [${c.id.padEnd(11)}] ${c.n} session(s)  ${c.roots.join(", ")}`);
   }
-  lines.push(`\n${total} session(s) across ${only ? 1 : detected.size} detected source(s)`);
+  lines.push(`\n${total} session(s) across ${only ? 1 : detected} detected source(s)`);
   return lines.join("\n");
 }
