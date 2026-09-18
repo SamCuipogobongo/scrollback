@@ -27,7 +27,6 @@ import { aider } from "../src/sources/aider.ts";
 import { goose } from "../src/sources/goose.ts";
 import { antigravity } from "../src/sources/antigravity.ts";
 import { codebuddy } from "../src/sources/codebuddy.ts";
-import { amp } from "../src/sources/amp.ts";
 import { cline } from "../src/sources/cline.ts";
 
 const FX = join(dirname(fileURLToPath(import.meta.url)), "../fixtures");
@@ -186,23 +185,6 @@ test("codebuddy: projects jsonl, ai-title preferred over summary", () => {
   assert.doesNotMatch(tx, /reasoning_text|hmm/);
   assert.equal(s.turns.filter((t) => t.role === "user").length, 1);
   assert.equal(s.turns.filter((t) => t.role === "assistant").length, 1);
-});
-
-test("amp: thread doc — text blocks only, thinking/tool skipped", () => {
-  const ss = amp.sessions(join(FX, "amp/threads"));
-  assert.equal(ss.length, 1);
-  const s = ss[0];
-  assert.equal(s.platform, "amp");
-  assert.equal(s.id, "T-0199aaaa-bbbb-7ccc-8ddd-eeeeffff0001");
-  assert.equal(s.cwd, "/Users/test/myapp");
-  assert.equal(s.title, "Fix flaky websocket reconnect");
-  assert.equal(s.startedAt, Date.parse("2026-09-17T14:23:11.000Z"));
-  const tx = texts(s);
-  assert.match(tx, /reconnect loop never backs off/);
-  assert.match(tx, /exponential backoff with jitter/);
-  assert.match(tx, /cap the retries/);
-  assert.doesNotMatch(tx, /let me look|tool_use|file edited|BUILD/);
-  assert.equal(s.turns.length, 4);
 });
 
 test("cline: standalone CLI task — tool_result blocks dropped", () => {

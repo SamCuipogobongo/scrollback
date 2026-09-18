@@ -20,7 +20,6 @@ import { goose } from "./sources/goose.ts";
 import { antigravity } from "./sources/antigravity.ts";
 import { codebuddy } from "./sources/codebuddy.ts";
 import { trae } from "./sources/trae.ts";
-import { amp } from "./sources/amp.ts";
 import { cline } from "./sources/cline.ts";
 import { channelSource } from "./sources/channel.ts";
 
@@ -43,7 +42,6 @@ export const SOURCES: Source[] = [
   antigravity,
   codebuddy,
   trae,
-  amp,
   cline,
   channelSource,
 ];

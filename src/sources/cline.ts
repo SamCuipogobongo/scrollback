@@ -20,7 +20,7 @@ function parseTaskFile(path: string, taskId: string): Session | null {
   let startedAt = 0;
   for (const m of msgs) {
     const filtered = Array.isArray(m?.content)
-      ? { ...m, content: m.content.filter((b) => b?.type !== "tool_result") }
+      ? { ...m, content: m.content.filter((b: any) => b?.type !== "tool_result") }
       : m;
     const t = extractTurn(filtered);
     if (!t) continue;

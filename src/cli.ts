@@ -83,7 +83,6 @@ platforms (auto-detected):
   antigravity  ~/.gemini/antigravity*/brain/*/…/transcript.jsonl
   codebuddy    ~/.codebuddy/projects/<cwd>/*.jsonl
   trae         <Trae CN>/ModularData/ai-agent (degraded: prompt echoes only)
-  amp          ~/.local/share/amp/threads/*.json (+ VS Code ext threads3)
   cline        ~/.cline/data/tasks/*/api_conversation_history.json
 
 override any root with SCROLLBACK_<PLATFORM>_ROOT (':'-separated).

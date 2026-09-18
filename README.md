@@ -6,14 +6,14 @@
 
 [![npm](https://img.shields.io/npm/v/sam-scrollback?style=flat-square)](https://www.npmjs.com/package/sam-scrollback)
 [![license](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
-[![agents](https://img.shields.io/badge/agents-24-green?style=flat-square)](#why-scrollback)
+[![agents](https://img.shields.io/badge/agents-23-green?style=flat-square)](#why-scrollback)
 [![node](https://img.shields.io/badge/node-%3E%3D22.13-lightgrey?style=flat-square)](https://nodejs.org)
 
 One search box across the conversation history of every agent you run —
 Claude Code, Codex, Devin, OpenCode, Qwen Code, Gemini CLI, Kimi Code,
 Factory Droid, Continue, Copilot CLI, Cursor, Zed, Copilot Chat,
 Cline/Roo/Kilo, Trae, Qoder, CodeBuddy, Aider, Goose, Antigravity,
-Amp, Cline CLI.
+Cline CLI.
 
 Local-first: a query scans the stores in place. Secrets are redacted at
 read time. One honest limit: Trae CN keeps transcripts in an encrypted,

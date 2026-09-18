@@ -6,13 +6,13 @@
 
 [![npm](https://img.shields.io/npm/v/sam-scrollback?style=flat-square)](https://www.npmjs.com/package/sam-scrollback)
 [![license](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](LICENSE)
-[![agents](https://img.shields.io/badge/agents-24-green?style=flat-square)](#为什么用它)
+[![agents](https://img.shields.io/badge/agents-23-green?style=flat-square)](#为什么用它)
 [![node](https://img.shields.io/badge/node-%3E%3D22.13-lightgrey?style=flat-square)](https://nodejs.org)
 
 一个搜索框,搜遍你装过的所有编程 Agent 的历史对话 —— Claude Code、Codex、
 Devin、OpenCode、Qwen Code、Gemini CLI、Kimi Code、Factory Droid、Continue、
 Copilot CLI、Cursor、Zed、Copilot Chat、Cline/Roo/Kilo、Trae、Qoder、
-CodeBuddy、Aider、Goose、Antigravity、Amp、Cline CLI。
+CodeBuddy、Aider、Goose、Antigravity、Cline CLI。
 
 本地优先:查询时直接扫原始存储;密钥自动脱敏。
 
