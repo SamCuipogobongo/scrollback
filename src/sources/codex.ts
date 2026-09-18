@@ -7,7 +7,7 @@
 // rollout-<ts>-<session-uuid>[_<fork-uuid>].jsonl and replays the parent tail —
 // group by session uuid, sort by ts, dedupe the overlap at the seam.
 
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { existsSync } from "node:fs";
 import type { Session, Source, Turn } from "../types.ts";
 import { cleanText, isUserNoise } from "../clean.ts";
@@ -33,7 +33,6 @@ function parseFile(path: string): {
   let startedAt = 0;
   let startsCompacted = false;
   const turns: Turn[] = [];
-  let bootstrapped = false;
   for (const ev of readJsonl(path)) {
     const p = ev.payload || {};
     if (ev.type === "session_meta") {
@@ -57,17 +56,16 @@ function parseFile(path: string): {
       : String(blocks ?? "");
     const t = cleanText(text);
     if (!t) continue;
-    // codex injects env envelope + AGENTS.md as first user turn(s)
-    if (p.role === "user" && !bootstrapped) {
+    // codex injects env envelope + AGENTS.md as user-role turns — not just at
+    // session head, real logs show mid-session injections too
+    if (p.role === "user") {
       if (
         isUserNoise(t) ||
         /AGENTS\.md instructions/i.test(text) ||
         /<environment_context>|<app-context>/i.test(text)
       )
         continue;
-      bootstrapped = true;
     }
-    if (p.role === "user" && isUserNoise(t)) continue;
     turns.push({ role: p.role, text: t });
   }
   return { startedAt, cwd, turns, startsCompacted };
@@ -88,6 +86,17 @@ function mergeTurns(a: Turn[], b: Turn[]): Turn[] {
   return [...a, ...b];
 }
 
+/** session_index.jsonl sits next to sessions/: {id, thread_name, updated_at} */
+function loadTitles(root: string): Map<string, string> {
+  const titles = new Map<string, string>();
+  const idx = join(dirname(root), "session_index.jsonl");
+  if (!existsSync(idx)) return titles;
+  for (const ev of readJsonl(idx)) {
+    if (ev.id && ev.thread_name) titles.set(String(ev.id), String(ev.thread_name));
+  }
+  return titles;
+}
+
 export const codex: Source = {
   id: "codex",
   roots() {
@@ -95,11 +104,13 @@ export const codex: Source = {
     return [
       ...envRoots("codex"),
       join(home, "sessions"),
+      join(home, "archived_sessions"), // archived threads move here, same format
       join(HOME, "Library/Developer/Xcode/CodingAssistant/codex/sessions"),
     ];
   },
   sessions(root) {
     if (!existsSync(root)) return [];
+    const titles = loadTitles(root);
     const bySid = new Map<string, string[]>();
     for (const f of walkFiles(root, [".jsonl"])) {
       const k = fileKey(f);
@@ -120,7 +131,8 @@ export const codex: Source = {
         if (seg.startsCompacted) for (const t of turns) t.preCompact = true;
         turns = mergeTurns(turns, seg.turns);
       }
-      if (turns.length) out.push({ platform: "codex", id: sid, cwd, startedAt, turns });
+      if (turns.length)
+        out.push({ platform: "codex", id: sid, cwd, startedAt, title: titles.get(sid), turns });
     }
     return out;
   },
