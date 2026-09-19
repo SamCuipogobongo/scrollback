@@ -20,16 +20,6 @@ CodeBuddy、Aider、Goose、Antigravity、Cline CLI。
   <img src="assets/demo.gif" alt="scrollback 演示" width="720">
 </p>
 
-## 为什么用它
-
-| | scrollback | deja-vu | claude-mem | agent mail |
-|---|---|---|---|---|
-| 能读已有会话 | ✓ | ✓ | ✗ | ✗ |
-| 要索引/守护进程 | ✗(原地扫) | 要索引 | 索引 + 每次查询过 LLM | — |
-| Devin · Trae · Qoder · CodeBuddy | ✓ | ✗ | ✗ | ✗ |
-| 自动接入所有 agent | ✓ `install` | 部分支持 | 手动 | 手动 |
-| Agent 互相通信 | ✓ `channel` | ✗ | ✗ | ✓ |
-
 ## 安装
 
 ```bash
@@ -44,6 +34,16 @@ scrollback install         # 自动往检测到的 agent 写 skills + MCP 配置
 ```json
 { "mcpServers": { "scrollback": { "command": "scrollback", "args": ["--mcp"] } } }
 ```
+
+## 为什么用它
+
+| | scrollback | deja-vu | claude-mem | agent mail |
+|---|---|---|---|---|
+| 能读已有会话 | ✓ | ✓ | ✗ | ✗ |
+| 要索引/守护进程 | ✗(原地扫) | 要索引 | 索引 + 每次查询过 LLM | — |
+| Devin · Trae · Qoder · CodeBuddy | ✓ | ✗ | ✗ | ✗ |
+| 自动接入所有 agent | ✓ `install` | 部分支持 | 手动 | 手动 |
+| Agent 互相通信 | ✓ `channel` | ✗ | ✗ | ✓ |
 
 ## 用法
 

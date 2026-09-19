@@ -17,13 +17,27 @@ Cline CLI.
 
 Local-first: nothing is indexed or uploaded — a search reads each agent's
 history files where they already live. API keys and secrets are masked out
-of results. One honest limit: Trae CN encrypts and syncs transcripts
-server-side — there scrollback can only show which folder you were in and
-what you sent, not the full conversation.
+of results.
 
 <p align="center">
   <img src="assets/demo.gif" alt="scrollback demo" width="720">
 </p>
+
+## Install
+
+```bash
+npm i -g sam-scrollback    # needs Node >= 22.13 (node:sqlite)
+scrollback install         # auto-wire skills + MCP into detected agents
+```
+
+`scrollback install` finds the agents on your machine and teaches each one
+to use it.
+
+For agents that speak MCP directly:
+
+```json
+{ "mcpServers": { "scrollback": { "command": "scrollback", "args": ["--mcp"] } } }
+```
 
 ## Why scrollback
 
@@ -34,26 +48,6 @@ what you sent, not the full conversation.
 | Devin · Trae · Qoder · CodeBuddy | ✓ | ✗ | ✗ | ✗ |
 | Wires itself into every agent | ✓ `install` | partial | manual | manual |
 | Agents can message each other | ✓ `channel` | ✗ | ✗ | ✓ |
-
-## Install
-
-```bash
-npm i -g sam-scrollback    # needs Node >= 22.13 (node:sqlite)
-scrollback install         # auto-wire skills + MCP into detected agents
-```
-
-`scrollback install` finds the agents on your machine and teaches each one
-to use it — a skill file plus an `mcpServers.scrollback` entry where the
-config format is known. Every agent gains recall. Preview with `--dry-run`.
-
-The first bare `scrollback` in a terminal runs a short welcome tour (once) —
-replay anytime with `scrollback onboarding`.
-
-For agents that speak MCP directly:
-
-```json
-{ "mcpServers": { "scrollback": { "command": "scrollback", "args": ["--mcp"] } } }
-```
 
 ## Commands
 
