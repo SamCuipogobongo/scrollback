@@ -98,6 +98,10 @@ node scrollback.ts <command>   # dev entry, Node 23.6+ type-stripping
 npm run build && npm test      # tsc → dist/, full test suite
 ```
 
+## Acknowledgments
+
+Shared with the [LINUX DO](https://linux.do) community.
+
 ## License
 
 [MIT](LICENSE)

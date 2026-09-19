@@ -93,6 +93,10 @@ node scrollback.ts <command>   # 开发入口,Node 23.6+ type-stripping
 npm run build && npm test      # tsc → dist/,全部测试
 ```
 
+## 致谢
+
+在 [LINUX DO](https://linux.do) 社区首发分享。
+
 ## 许可证
 
 [MIT](LICENSE)
